@@ -6,7 +6,7 @@ use anyhow::{Error, Result};
 use chrono::prelude::*;
 use chrono_tz::Tz;
 use colored::*;
-use dateparser::parse;
+use dateparser::DateTimeUtc;
 use prettytable::{cell, row, Table};
 
 pub struct App<'a> {
@@ -21,16 +21,15 @@ impl<'a> App<'a> {
 
     pub fn show_datetime(&self) -> Result<()> {
         if self.opts.subcommands.is_some() {
-            // is subcommands are given, skip showing datetime
+            // skip showing datetime: subcommand given,
+            // and it will be handle in another method
             return Ok(());
         }
 
-        let to_show = &self
-            .opts
-            .time
-            .as_ref()
-            .and_then(|time| parse(&time)) // if datetime given in args, try to parse it
-            .unwrap_or_else(|| Utc::now()); // no datetime given or could not parse it, fall back on now @ utc
+        let mut to_show = Utc::now();
+        if let Some(time) = &self.opts.time {
+            to_show = time.parse::<DateTimeUtc>()?.0;
+        }
 
         let mut table = Table::new();
         let local = to_show.with_timezone(&Local);

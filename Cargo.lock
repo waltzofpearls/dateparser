@@ -233,6 +233,7 @@ dependencies = [
 name = "dateparser"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "chrono",
  "regex",
 ]
