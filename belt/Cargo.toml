@@ -13,7 +13,7 @@ chrono-tz = "0.5"
 clap = "3.0.0-beta.2"
 colored = "2.0.0"
 confy = "0.4.0"
+dateparser = { path = "../dateparser" }
 directories = "^2.0"
 prettytable-rs = "0.8.0"
 serde = { version = "1.0.125", features = ["derive"] }
-dateparser = { path = "../dateparser" }
