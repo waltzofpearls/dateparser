@@ -3,10 +3,16 @@ use clap::Clap;
 #[derive(Clap, Debug)]
 #[clap(author, about, version)]
 pub struct Opts {
-    #[clap(short, long, name = "NAME", default_value = "belt")]
-    pub app: String,
     #[clap(name = "TIME")]
     pub time: Option<String>,
+    /// Provide a terse answer, and default to a verbose form
+    #[clap(short, long)]
+    pub short: bool,
+
+    /// Name of the config
+    #[clap(short, long, name = "NAME", default_value = "belt")]
+    pub app: String,
+
     #[clap(subcommand)]
     pub subcommands: Option<Subcommands>,
 }

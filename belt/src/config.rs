@@ -42,15 +42,15 @@ impl Config {
     pub fn list(&self) -> Result<()> {
         let now_utc = Local::now().naive_utc();
         let mut table = Table::new();
-        table.set_titles(row!["Zone", "Abbr.", "Offset"]);
+        table.set_titles(row![l -> "Zone", l -> "Abbr.", r -> "Offset"]);
         for timezone in &self.timezones {
             let tz: Tz = timezone.parse().map_err(Error::msg)?;
             let offset = tz.offset_from_utc_datetime(&now_utc);
             table.add_row(row![
-                timezone,
-                offset.abbreviation(),
-                match offset.base_utc_offset().num_hours() {
-                    0 => "0 hour".to_string(),
+                l -> timezone,
+                l -> offset.abbreviation(),
+                r -> match offset.base_utc_offset().num_hours() {
+                    0 => "0 hour ".to_string(),
                     hours => format!("{} hours", hours),
                 }
             ]);

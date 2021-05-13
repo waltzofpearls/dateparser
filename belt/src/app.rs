@@ -31,24 +31,29 @@ impl<'a> App<'a> {
             to_show = time.parse::<DateTimeUtc>()?.0;
         }
 
-        let mut table = Table::new();
         let local = to_show.with_timezone(&Local);
         let ymd_hms_z = "%Y-%m-%d %H:%M:%S %z";
         let ymd_hm_z = "%Y-%m-%d %H:%M %Z";
-        table.set_titles(row!["Zone", "Date & Time"]);
-        table.add_row(row![
-            "Local",
-            format!("{}\n{}", local.format(ymd_hms_z), local.format("%s"))
-        ]);
-        for timezone in &self.config.timezones {
-            let tz: Tz = timezone.parse().map_err(Error::msg)?;
-            let dtz = to_show.with_timezone(&tz);
+
+        if self.opts.short {
+            println!("{}", local.format(ymd_hms_z));
+        } else {
+            let mut table = Table::new();
+            table.set_titles(row!["Zone", "Date & Time"]);
             table.add_row(row![
-                timezone,
-                format!("{}\n{}", dtz.format(ymd_hms_z), dtz.format(ymd_hm_z))
+                "Local",
+                format!("{}\n{}", local.format(ymd_hms_z), local.format("%s"))
             ]);
+            for timezone in &self.config.timezones {
+                let tz: Tz = timezone.parse().map_err(Error::msg)?;
+                let dtz = to_show.with_timezone(&tz);
+                table.add_row(row![
+                    timezone,
+                    format!("{}\n{}", dtz.format(ymd_hms_z), dtz.format(ymd_hm_z))
+                ]);
+            }
+            table.printstd();
         }
-        table.printstd();
 
         Ok(())
     }
