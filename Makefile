@@ -57,3 +57,7 @@ release: cross
 	@echo "[release] Creating package for Linux armv7..."
 	tar -cvzf $(LINUX_ARMV7) \
 		-C $$PWD/target/armv7-unknown-linux-gnueabihf/release $(APP)
+
+.PHONY: publish
+publish:
+	cargo publish --manifest-path dateparser/Cargo.toml
