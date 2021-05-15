@@ -11,9 +11,10 @@
 [crate-badge]: https://img.shields.io/crates/v/dateparser.svg
 [crate-url]: https://crates.io/crates/dateparser
 
-A rust library for parsing date strings in commonly used formats.
+A rust library for parsing date strings in commonly used formats. Parsed date will be returned as `chrono`'s
+`DateTime<Utc>`.
 
-## Example
+## Examples
 
 Add to your `Cargo.toml`:
 
@@ -30,7 +31,7 @@ use std::error::Error;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let parsed = parse("6:15pm")?;
-    println("{:#?}", parsed);
+    println!("{:#?}", parsed);
     Ok(())
 }
 ```
@@ -39,10 +40,31 @@ Or use `str`'s `parse` method:
 
 ```rust
 use dateparser::DateTimeUtc;
+use std::error::Error;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let parsed = "2021-05-14 18:51 PDT".parse::<DateTimeUtc>()?.0;
-    println("{:#?}", parsed);
+    println!("{:#?}", parsed);
+    Ok(())
+}
+```
+
+Convert returned `DateTime<Utc>` to pacific time zone datetime with `chrono-tz`:
+
+```toml
+[dependencies]
+chrono-tz = "0.5.3"
+dateparser = "0.1.0"
+```
+
+```rust
+use chrono_tz::US::Pacific;
+use dateparser::DateTimeUtc;
+use std::error::Error;
+
+fn main() -> Result<(), Box<dyn Error>> {
+    let parsed = "2021-05-14 18:51 PDT".parse::<DateTimeUtc>()?.0;
+    println!("{:#?}", parsed.with_timezone(&Pacific));
     Ok(())
 }
 ```
