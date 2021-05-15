@@ -75,6 +75,7 @@ brew install belt
 ## `dateparser`
 
 [![Crate][crate-badge]][crate-url]
+
 [crate-badge]: https://img.shields.io/crates/v/dateparser.svg
 [crate-url]: https://crates.io/crates/dateparser
 
