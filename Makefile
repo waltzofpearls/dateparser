@@ -57,6 +57,11 @@ release: cross
 	@echo "[release] Creating package for Linux armv7..."
 	tar -cvzf $(LINUX_ARMV7) \
 		-C $$PWD/target/armv7-unknown-linux-gnueabihf/release $(APP)
+	@make checksum
+
+.PHONY: checksum
+checksum:
+	shasum -a 256 target/package/$(APP)-$(VERSION)-*.tar.gz > target/package/$(APP)-$(VERSION)-checksums.txt
 
 .PHONY: publish
 publish:

@@ -62,3 +62,20 @@ OPTIONS:
     -a, --add <timezone_to_add>          Add a new time zone to the list
     -d, --delete <timezone_to_delete>    Delete a time zone from the list
 ```
+
+## Installation
+
+MacOS Homebrew or Linuxbrew:
+
+```shell
+brew tap waltzofpearls/belt
+brew install belt
+```
+
+## `dateparser`
+
+[![Crate][crate-badge]][crate-url]
+[crate-badge]: https://img.shields.io/crates/v/dateparser.svg
+[crate-url]: https://crates.io/crates/dateparser
+
+Date parsing in belt is powered by `dateparser` crate, which is [a part of this repo](./dateparser/).
