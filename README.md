@@ -1,9 +1,17 @@
 # belt + dateparser
 
-A CLI app to show your time from a list of selected time zones, and a rust lib to parse dates in string
-formats that are commonly used.
+[![Build Status][actions-badge]][actions-url]
+[![MIT licensed][mit-badge]][mit-url]
 
-Run `belt` command to parse an input date and display the parsed date in these time zones by default:
+[actions-badge]: https://github.com/waltzofpearls/belt/workflows/ci/badge.svg
+[actions-url]: https://github.com/waltzofpearls/belt/actions?query=workflow%3Aci+branch%3Amain
+[mit-badge]: https://img.shields.io/badge/license-MIT-blue.svg
+[mit-url]: https://github.com/waltzofpearls/belt/blob/main/LICENSE
+
+`belt` is a command line app that can show your time from a list of selected time zones. `dateparser`
+is a rust library for parsing date strings in commonly used formats.
+
+Run `belt` to parse a given date:
 
 ```shell
 $ belt 'MAY 12, 2021 16:44 UTC'
@@ -27,7 +35,7 @@ $ belt 'MAY 12, 2021 16:44 UTC'
 +-------------------+---------------------------+
 ```
 
-Or display in the short form
+Display parsed date in the short form:
 
 ```shell
 $ belt 'MAY 12, 2021 16:44 UTC' --short
