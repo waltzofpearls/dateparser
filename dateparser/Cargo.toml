@@ -1,6 +1,6 @@
 [package]
 name = "dateparser"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Rollie Ma <rollie@rollie.dev>"]
 description = "Parse dates in string formats that are commonly used"
 readme = "README.md"
@@ -14,3 +14,6 @@ edition = "2018"
 anyhow = "1.0.40"
 chrono = "0.4"
 regex = "1.5.4"
+
+[dev-dependencies]
+chrono-tz = "0.5.3"

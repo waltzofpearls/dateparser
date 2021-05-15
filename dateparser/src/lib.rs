@@ -372,13 +372,17 @@ mod tests {
         );
 
         let tz = FixedOffset::west(8 * 3600);
-        let now = Local::now();
 
         // ymd
         assert_eq!(
             parse("2021-02-21").unwrap().trunc_subsecs(0),
             Local::ymd(&Local, 2021, 2, 21)
-                .and_hms_nano(now.hour(), now.minute(), now.second(), now.nanosecond())
+                .and_hms_nano(
+                    Local::now().hour(),
+                    Local::now().minute(),
+                    Local::now().second(),
+                    Local::now().nanosecond()
+                )
                 .trunc_subsecs(0)
                 .with_timezone(&Utc)
         );
@@ -386,25 +390,39 @@ mod tests {
         assert_eq!(
             parse("2021-02-21 PST").unwrap().trunc_subsecs(0),
             tz.ymd(2021, 2, 21)
-                .and_hms_nano(now.hour(), now.minute(), now.second(), now.nanosecond())
+                .and_hms_nano(
+                    Local::now().hour(),
+                    Local::now().minute(),
+                    Local::now().second(),
+                    Local::now().nanosecond()
+                )
                 .trunc_subsecs(0)
                 .with_timezone(&Utc)
         );
         // hms_imp
         assert_eq!(
             parse("4:00pm").unwrap(),
-            Local::ymd(&Local, now.year(), now.month(), now.day())
-                .and_time(NaiveTime::from_hms(16, 0, 0))
-                .unwrap()
-                .with_timezone(&Utc)
+            Local::ymd(
+                &Local,
+                Local::now().year(),
+                Local::now().month(),
+                Local::now().day()
+            )
+            .and_time(NaiveTime::from_hms(16, 0, 0))
+            .unwrap()
+            .with_timezone(&Utc)
         );
         // hms_imp_z
         assert_eq!(
             parse("6:00 AM PST").unwrap(),
-            tz.ymd(now.year(), now.month(), now.day())
-                .and_time(NaiveTime::from_hms(6, 0, 0))
-                .unwrap()
-                .with_timezone(&Utc)
+            tz.ymd(
+                Local::now().year(),
+                Local::now().month(),
+                Local::now().day()
+            )
+            .and_time(NaiveTime::from_hms(6, 0, 0))
+            .unwrap()
+            .with_timezone(&Utc)
         );
         // bey_hms_z
         assert_eq!(
