@@ -2,14 +2,17 @@
 
 [![Build Status][actions-badge]][actions-url]
 [![MIT licensed][mit-badge]][mit-url]
-[![Crate][crate-badge]][crate-url]
+[![Crates.io][cratesio-badge]][cratesio-url]
+[![Doc.rs][docrs-badge]][docrs-url]
 
 [actions-badge]: https://github.com/waltzofpearls/belt/workflows/ci/badge.svg
 [actions-url]: https://github.com/waltzofpearls/belt/actions?query=workflow%3Aci+branch%3Amain
 [mit-badge]: https://img.shields.io/badge/license-MIT-blue.svg
 [mit-url]: https://github.com/waltzofpearls/belt/blob/main/LICENSE
-[crate-badge]: https://img.shields.io/crates/v/dateparser.svg
-[crate-url]: https://crates.io/crates/dateparser
+[cratesio-badge]: https://img.shields.io/crates/v/dateparser.svg
+[cratesio-url]: https://crates.io/crates/dateparser
+[docrs-badge]: https://docs.rs/dateparser/badge.svg
+[docrs-url]: https://docs.rs/crate/dateparser/
 
 A rust library for parsing date strings in commonly used formats. Parsed date will be returned as `chrono`'s
 `DateTime<Utc>`.
@@ -63,13 +66,13 @@ use dateparser::DateTimeUtc;
 use std::error::Error;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let parsed = "2021-05-14 18:51 PDT".parse::<DateTimeUtc>()?.0;
+    let parsed = "Wed, 02 Jun 2021 06:31:39 GMT".parse::<DateTimeUtc>()?.0;
     println!("{:#?}", parsed.with_timezone(&Pacific));
     Ok(())
 }
 ```
 
-### Accepted date formats
+## Accepted date formats
 
 ```
 1511648546

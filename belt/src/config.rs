@@ -5,14 +5,20 @@ use colored::*;
 use directories::ProjectDirs;
 use prettytable::{cell, row, Table};
 use serde::{Deserialize, Serialize};
+use std::io;
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Config {
-    pub timezones: Vec<String>,
+pub struct Config<'a, T> {
+    pub store: Store,
+    pub out: &'a mut T,
     pub app: String,
 }
 
-impl Default for Config {
+#[derive(Serialize, Deserialize)]
+pub struct Store {
+    pub timezones: Vec<String>,
+}
+
+impl Default for Store {
     fn default() -> Self {
         Self {
             timezones: vec![
@@ -21,29 +27,35 @@ impl Default for Config {
                 "America/New_York".to_string(),
                 "Europe/London".to_string(),
             ],
-            app: "belt".to_string(),
         }
     }
 }
 
-impl Config {
-    pub fn new(app: &str) -> Result<Self> {
-        let mut config: Config = confy::load(app)?;
-        config.app = app.to_string();
-        Ok(config)
+impl<'a, T> Config<'a, T>
+where
+    T: io::Write,
+{
+    pub fn new(app: &str, out: &'a mut T) -> Result<Self> {
+        let store: Store = confy::load(app)?;
+        Ok(Self {
+            store,
+            out,
+            app: app.to_string(),
+        })
     }
 
     pub fn path(&self) -> String {
         ProjectDirs::from("rs", "", &self.app)
             .and_then(|project| project.config_dir().to_str().map(|s: &str| s.to_string()))
+            .map(|s| format!("{}/{}.toml", s, self.app))
             .unwrap_or_else(|| "".to_string())
     }
 
-    pub fn list(&self) -> Result<()> {
+    pub fn list(&mut self) -> Result<()> {
         let now_utc = Local::now().naive_utc();
         let mut table = Table::new();
         table.set_titles(row![l -> "Zone", l -> "Abbr.", r -> "Offset"]);
-        for timezone in &self.timezones {
+        for timezone in &self.store.timezones {
             let tz: Tz = timezone.parse().map_err(Error::msg)?;
             let offset = tz.offset_from_utc_datetime(&now_utc);
             table.add_row(row![
@@ -55,49 +67,176 @@ impl Config {
                 }
             ]);
         }
-        table.printstd();
+        table.print(self.out)?;
         Ok(())
     }
 
-    pub fn add(&mut self, to_add: &str) {
+    pub fn add(&mut self, to_add: &str) -> Result<()> {
         match to_add.parse::<Tz>().and_then(|_| {
-            self.timezones.push(to_add.to_string());
-            confy::store(&self.app, &self).map_err(|err| format!("{}", err))
+            self.store.timezones.push(to_add.to_string());
+            confy::store(&self.app, &self.store).map_err(|err| format!("{}", err))
         }) {
-            Ok(_) => println!(
+            Ok(_) => writeln!(
+                &mut self.out,
                 "{}",
                 format!("Added '{}' to config.", to_add).green().bold()
-            ),
-            Err(err) => println!(
+            )?,
+            Err(err) => writeln!(
+                &mut self.out,
                 "{}",
                 format!("Could not add time zone: {}.", err).red().bold()
-            ),
+            )?,
         };
+        Ok(())
     }
 
-    pub fn delete(&mut self, to_delete: &str) {
-        self.timezones.retain(|tz| tz != to_delete);
-        match confy::store(&self.app, &self) {
-            Ok(_) => println!(
+    pub fn delete(&mut self, to_delete: &str) -> Result<()> {
+        self.store.timezones.retain(|tz| tz != to_delete);
+        match confy::store(&self.app, &self.store) {
+            Ok(_) => writeln!(
+                &mut self.out,
                 "{}",
                 format!("Deleted '{}' from config.", to_delete)
                     .green()
                     .bold()
-            ),
-            Err(err) => println!(
+            )?,
+            Err(err) => writeln!(
+                &mut self.out,
                 "{}",
                 format!("Could not delete time zone: {}.", err).red().bold()
-            ),
+            )?,
+        };
+        Ok(())
+    }
+
+    pub fn reset(&mut self) -> Result<()> {
+        self.store.timezones = Store::default().timezones;
+        match confy::store(&self.app, &self.store) {
+            Ok(_) => writeln!(
+                &mut self.out,
+                "{}",
+                "Config has been reset to default.".green().bold()
+            )?,
+            Err(err) => writeln!(
+                &mut self.out,
+                "{}",
+                format!("Could not reset time zones: {}", err).red().bold()
+            )?,
+        };
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rand::{thread_rng, Rng};
+    use std::{thread::sleep, time::Duration};
+
+    #[test]
+    fn test_config_path() {
+        let mut buf = vec![0u8];
+        let app = "unit-test";
+        let config = match Config::new(app, &mut buf) {
+            Ok(config) => config,
+            Err(_) => {
+                sleep(Duration::from_millis(thread_rng().gen_range(100..500)));
+                Config::new(app, &mut buf).expect("failed to create config")
+            }
+        };
+        let path = config.path();
+        if !path.contains(app) {
+            panic!("path [{}] does not contain [unit-test]", path);
         }
     }
 
-    pub fn reset(&self) {
-        match confy::store(&self.app, Config::default()) {
-            Ok(_) => println!("{}", "Config has been reset to default.".green().bold()),
-            Err(err) => println!(
-                "{}",
-                format!("Could not reset time zones: {}", err).red().bold()
-            ),
+    #[test]
+    fn test_config_list() {
+        let mut buf = vec![0u8];
+        let app = "unit-test";
+        let mut config = match Config::new(app, &mut buf) {
+            Ok(config) => config,
+            Err(_) => {
+                sleep(Duration::from_millis(thread_rng().gen_range(100..500)));
+                Config::new(app, &mut buf).expect("failed to create config")
+            }
+        };
+        config.reset().expect("failed to reset config store");
+        config.out.clear();
+
+        config.list().expect("failed to list configured timezons");
+        let listed = String::from_utf8_lossy(&buf);
+        for tz in Store::default().timezones {
+            assert!(listed.contains(&tz));
         }
+    }
+
+    #[test]
+    fn test_config_add() {
+        let mut buf = vec![0u8];
+        let app = "unit-test";
+        let mut config = match Config::new(app, &mut buf) {
+            Ok(config) => config,
+            Err(_) => {
+                sleep(Duration::from_millis(thread_rng().gen_range(100..500)));
+                Config::new(app, &mut buf).expect("failed to create config")
+            }
+        };
+        config.reset().expect("failed to reset config store");
+        config
+            .add("Europe/Berlin")
+            .expect("failed to add Europe/Berlin");
+        config.out.clear();
+
+        config.list().expect("failed to list configured timezons");
+        let listed = String::from_utf8_lossy(&buf);
+        assert!(listed.contains("Europe/Berlin"));
+    }
+
+    #[test]
+    fn test_config_delete() {
+        let mut buf = vec![0u8];
+        let app = "unit-test";
+        let mut config = match Config::new(app, &mut buf) {
+            Ok(config) => config,
+            Err(_) => {
+                sleep(Duration::from_millis(thread_rng().gen_range(100..500)));
+                Config::new(app, &mut buf).expect("failed to create config")
+            }
+        };
+        config.reset().expect("failed to reset config store");
+        config.delete("UTC").expect("failed to delete UTC");
+        config.out.clear();
+
+        config.list().expect("failed to list configured timezons");
+        let listed = String::from_utf8_lossy(&buf);
+        assert_eq!(listed.contains("UTC"), false);
+    }
+
+    #[test]
+    fn test_config_reset() {
+        let mut buf = vec![0u8];
+        let app = "unit-test";
+        let mut config = match Config::new(app, &mut buf) {
+            Ok(config) => config,
+            Err(_) => {
+                sleep(Duration::from_millis(thread_rng().gen_range(100..500)));
+                Config::new(app, &mut buf).expect("failed to create config")
+            }
+        };
+        config.reset().expect("failed to reset config store");
+        config
+            .add("Europe/Berlin")
+            .expect("failed to add Europe/Berlin");
+        config.delete("UTC").expect("failed to delete UTC");
+        config.reset().expect("failed to reset config store");
+        config.out.clear();
+
+        config.list().expect("failed to list configured timezons");
+        let listed = String::from_utf8_lossy(&buf);
+        for tz in Store::default().timezones {
+            assert!(listed.contains(&tz));
+        }
+        assert_eq!(listed.contains("Europe/Berlin"), false);
     }
 }

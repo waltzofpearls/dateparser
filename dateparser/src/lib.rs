@@ -1,7 +1,125 @@
+//! A rust library for parsing date strings in commonly used formats. Parsed date will be returned
+//! as `chrono`'s `DateTime<Utc>`.
+//!
+//! # Quick Start
+//!
+//! ```
+//! use chrono::prelude::*;
+//! use dateparser::parse;
+//! use std::error::Error;
+//!
+//! fn main() -> Result<(), Box<dyn Error>> {
+//!     let parsed = parse("6:15pm UTC")?;
+//!     let utc_now = Local::now().with_timezone(&Utc);
+//!
+//!     assert_eq!(
+//!         parsed.format("%Y-%m-%d %H:%M:%S %z").to_string(),
+//!         format!("{} 18:15:00 +0000", utc_now.format("%Y-%m-%d"))
+//!     );
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! Use `str`'s `parse` method:
+//!
+//! ```
+//! use dateparser::DateTimeUtc;
+//! use std::error::Error;
+//!
+//! fn main() -> Result<(), Box<dyn Error>> {
+//!     let parsed = "2021-05-14 18:51 PDT".parse::<DateTimeUtc>()?.0;
+//!
+//!     assert_eq!(parsed.format("%Y-%m-%d %H:%M:%S %z").to_string(), "2021-05-15 01:51:00 +0000");
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! ## Accepted date formats
+//!
+//! ```
+//! use dateparser::DateTimeUtc;
+//!
+//! let accepted = vec![
+//!     "1511648546",
+//!     "1620021848429",
+//!     "1620024872717915000",
+//!     "2021-05-01T01:17:02.604456Z",
+//!     "2017-11-25T22:34:50Z",
+//!     "Wed, 02 Jun 2021 06:31:39 GMT",
+//!     "2019-11-29 08:08:05-08",
+//!     "2021-05-02 23:31:36.0741-07",
+//!     "2021-05-02 23:31:39.12689-07",
+//!     "2019-11-29 08:15:47.624504-08",
+//!     "2021-04-30 21:14:10",
+//!     "2021-04-30 21:14:10.052282",
+//!     "2017-11-25 13:31:15 PST",
+//!     "2017-11-25 13:31 PST",
+//!     "2021-02-21",
+//!     "2021-02-21 PST",
+//!     "01:06:06",
+//!     "4:00pm",
+//!     "6:00 AM",
+//!     "01:06:06 PST",
+//!     "4:00pm PST",
+//!     "6:00 AM PST",
+//!     "May 02, 2021 15:51:31 UTC",
+//!     "May 02, 2021 15:51 UTC",
+//! ];
+//!
+//! for date_str in accepted {
+//!     let result = date_str.parse::<DateTimeUtc>();
+//!     assert!(result.is_ok())
+//! }
+//! ```
+
 use anyhow::{anyhow, Error, Result};
 use chrono::prelude::*;
 use regex::Regex;
 
+/// DateTimeUtc is an alias for `chrono`'s `DateTime<UTC>`. It implements `std::str::FromStr`'s
+/// `from_str` method, and it makes `str`'s `parse` method to understand the accepted date formats
+/// from this crate.
+///
+/// ```
+/// use dateparser::DateTimeUtc;
+///
+/// let accepted = vec![
+///     "1511648546",
+///     "1620021848429",
+///     "1620024872717915000",
+///     "2021-05-01T01:17:02.604456Z",
+///     "2017-11-25T22:34:50Z",
+///     "Wed, 02 Jun 2021 06:31:39 GMT",
+///     "2019-11-29 08:08:05-08",
+///     "2021-05-02 23:31:36.0741-07",
+///     "2021-05-02 23:31:39.12689-07",
+///     "2019-11-29 08:15:47.624504-08",
+///     "2021-04-30 21:14:10",
+///     "2021-04-30 21:14:10.052282",
+///     "2017-11-25 13:31:15 PST",
+///     "2017-11-25 13:31 PST",
+///     "2021-02-21",
+///     "2021-02-21 PST",
+///     "01:06:06",
+///     "4:00pm",
+///     "6:00 AM",
+///     "01:06:06 PST",
+///     "4:00pm PST",
+///     "6:00 AM PST",
+///     "May 02, 2021 15:51:31 UTC",
+///     "May 02, 2021 15:51 UTC",
+/// ];
+///
+/// for date_str in accepted {
+///     // parsed is DateTimeUTC and parsed.0 is chrono's DateTime<Utc>
+///     match date_str.parse::<DateTimeUtc>() {
+///         Ok(parsed) => println!("PARSED {} into UTC datetime {:?}", date_str, parsed.0),
+///         Err(err) => println!("ERROR from parsing {}: {}", date_str, err)
+///     }
+/// }
+/// ```
 pub struct DateTimeUtc(pub DateTime<Utc>);
 
 impl std::str::FromStr for DateTimeUtc {
@@ -12,6 +130,22 @@ impl std::str::FromStr for DateTimeUtc {
     }
 }
 
+/// parse tries to interpret the input date and/or time string with a list of parsing functions.
+/// Each function can understand a specific date format. When all options are exhausted, parse will
+/// return an error to let the caller know that no formats were matched.
+///
+/// ```
+/// use dateparser::parse;
+/// use chrono_tz::US::Pacific;
+///
+/// let parsed = parse("6:15pm").unwrap();
+///
+/// // print out parsed datetime in UTC
+/// println!("{:?}", parsed);
+///
+/// // print parsed datetime in pacific time
+/// println!("{:?}", parsed.with_timezone(&Pacific));
+/// ```
 pub fn parse(input: &str) -> Result<DateTime<Utc>> {
     parse_unix_timestamp(input)
         .or_else(|| parse_unix_timestamp_millis(input))

@@ -17,3 +17,7 @@ dateparser = { path = "../dateparser" }
 directories = "^2.0"
 prettytable-rs = "0.8.0"
 serde = { version = "1.0.125", features = ["derive"] }
+
+[dev-dependencies]
+rand = "0.8.3"
+regex = "1.5.4"

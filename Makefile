@@ -8,15 +8,16 @@ lint:
 
 .PHONY: test
 test:
-	cargo test
+	RUST_BACKTRACE=1 cargo test
 
 .PHONY: cover
 cover:
 	docker run \
         --security-opt seccomp=unconfined \
         -v ${PWD}:/volume \
-        xd009642/tarpaulin \
-        cargo tarpaulin --out Html --output-dir ./target
+		-e "RUST_BACKTRACE=1" \
+		xd009642/tarpaulin \
+        cargo tarpaulin --color auto --out Html --output-dir ./target
 	open target/tarpaulin-report.html
 
 .PHONY: cross
