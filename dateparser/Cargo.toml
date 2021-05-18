@@ -17,4 +17,9 @@ regex = "1.5.4"
 
 [dev-dependencies]
 chrono-tz = "0.5.3"
-criterion = "0.3.4"
+criterion = { version = "0.3.4", features = ["html_reports"] }
+lazy_static = "1.4.0"
+
+[[bench]]
+name = "parse"
+harness = false

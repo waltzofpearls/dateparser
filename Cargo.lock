@@ -337,6 +337,7 @@ dependencies = [
  "chrono",
  "chrono-tz",
  "criterion",
+ "lazy_static",
  "regex",
 ]
 
