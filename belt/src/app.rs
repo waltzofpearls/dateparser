@@ -8,21 +8,24 @@ use chrono_tz::Tz;
 use colored::*;
 use dateparser::DateTimeUtc;
 use prettytable::{cell, row, Table};
+use std::io;
 
-pub struct App<'a> {
-    opts: &'a Opts,
-    config: &'a mut Config,
+pub struct App<'a, T> {
+    pub opts: &'a Opts,
+    pub config: &'a mut Config<'a, T>,
 }
 
-impl<'a> App<'a> {
-    pub fn new(opts: &'a Opts, config: &'a mut Config) -> Self {
+impl<'a, T> App<'a, T>
+where
+    T: io::Write,
+{
+    pub fn new(opts: &'a Opts, config: &'a mut Config<'a, T>) -> Self {
         Self { opts, config }
     }
 
-    pub fn show_datetime(&self) -> Result<()> {
+    pub fn show_datetime(&mut self) -> Result<()> {
         if self.opts.subcommands.is_some() {
-            // skip showing datetime: subcommand given,
-            // and it will be handle in another method
+            // skip showing datetime when there is a subcommand
             return Ok(());
         }
 
@@ -36,7 +39,7 @@ impl<'a> App<'a> {
         let ymd_hm_z = "%Y-%m-%d %H:%M %Z";
 
         if self.opts.short {
-            println!("{}", local.format(ymd_hms_z));
+            writeln!(&mut self.config.out, "{}", local.format(ymd_hms_z))?;
         } else {
             let mut table = Table::new();
             table.set_titles(row!["Zone", "Date & Time"]);
@@ -44,7 +47,7 @@ impl<'a> App<'a> {
                 "Local",
                 format!("{}\n{}", local.format(ymd_hms_z), local.format("%s"))
             ]);
-            for timezone in &self.config.timezones {
+            for timezone in &self.config.store.timezones {
                 let tz: Tz = timezone.parse().map_err(Error::msg)?;
                 let dtz = to_show.with_timezone(&tz);
                 table.add_row(row![
@@ -52,7 +55,7 @@ impl<'a> App<'a> {
                     format!("{}\n{}", dtz.format(ymd_hms_z), dtz.format(ymd_hm_z))
                 ]);
             }
-            table.printstd();
+            table.print(&mut self.config.out)?;
         }
 
         Ok(())
@@ -63,26 +66,95 @@ impl<'a> App<'a> {
             match subcommands {
                 Subcommands::Config(c) => {
                     if c.list {
-                        println!(
-                            "{}",
-                            format!("{}/{}.toml", self.config.path(), self.config.app)
-                                .cyan()
-                                .bold()
-                        );
+                        let path = self.config.path();
+                        writeln!(&mut self.config.out, "{}", path.cyan().bold())?;
                         self.config.list()?;
                     } else if c.reset {
-                        self.config.reset();
+                        self.config.reset()?;
                         self.config.list()?;
                     } else if let Some(add) = &c.add {
-                        self.config.add(&add);
+                        self.config.add(&add)?;
                         self.config.list()?;
                     } else if let Some(delete) = &c.delete {
-                        self.config.delete(&delete);
+                        self.config.delete(&delete)?;
                         self.config.list()?;
                     }
                 }
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::opts::OptsConfig;
+    use rand::{thread_rng, Rng};
+    use regex::Regex;
+    use std::{thread::sleep, time::Duration};
+
+    #[test]
+    fn test_app_show_datetime() {
+        let mut opts = Opts::new();
+        opts.app = "unit-test".to_string();
+        let mut buf = vec![0u8];
+        let mut config = match Config::new(&opts.app, &mut buf) {
+            Ok(config) => config,
+            Err(_) => {
+                sleep(Duration::from_millis(thread_rng().gen_range(100..500)));
+                Config::new(&opts.app, &mut buf).expect("failed to create config")
+            }
+        };
+        let timezones = config.store.timezones.clone();
+        let num_timezones = timezones.len();
+        let mut app = App::new(&opts, &mut config);
+
+        app.show_datetime().expect("failed showing time");
+
+        let printed = String::from_utf8_lossy(&buf);
+        for tz in timezones {
+            assert!(printed.contains(&tz));
+        }
+        let re = Regex::new(r"[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} [0-9-+]{5}")
+            .expect("failed to parse regex");
+        let matches: Vec<&str> = re.find_iter(&printed).map(|mat| mat.as_str()).collect();
+        assert_eq!(matches.len(), num_timezones + 1); // num_timezones + local
+    }
+
+    #[test]
+    fn test_app_handle_subcommands() {
+        let mut opts = Opts::new();
+        opts.app = "unit-test".to_string();
+        let mut buf = vec![0u8];
+        let mut config = match Config::new(&opts.app, &mut buf) {
+            Ok(config) => config,
+            Err(_) => {
+                sleep(Duration::from_millis(thread_rng().gen_range(100..500)));
+                Config::new(&opts.app, &mut buf).expect("failed to create config")
+            }
+        };
+        let timezones = config.store.timezones.clone();
+        let mut app = App::new(&opts, &mut config);
+
+        let opts = Opts {
+            subcommands: Some(Subcommands::Config(OptsConfig {
+                list: true,
+                reset: false,
+                add: None,
+                delete: None,
+            })),
+            time: None,
+            short: false,
+            app: opts.app.to_owned(),
+        };
+        app.opts = &opts;
+        app.handle_subcommands()
+            .expect("failed handling subcommands");
+
+        let printed = String::from_utf8_lossy(&buf);
+        for tz in timezones {
+            assert!(printed.contains(&tz));
+        }
     }
 }

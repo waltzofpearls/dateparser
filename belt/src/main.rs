@@ -7,7 +7,8 @@ use anyhow::Result;
 
 fn main() -> Result<()> {
     let opts = Opts::new();
-    let mut config = Config::new(opts.app.as_ref())?;
+    let mut out = std::io::stdout();
+    let mut config = Config::new(&opts.app, &mut out)?;
     let mut app = App::new(&opts, &mut config);
 
     app.show_datetime()?;
