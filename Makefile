@@ -34,6 +34,11 @@ cross: build
 			cross build --target armv7-unknown-linux-gnueabihf --release \
 		'
 
+.PHONY: bench
+bench:
+	cargo bench --bench parse -- --verbose
+	open target/criterion/report/index.html
+
 APP = belt
 VERSION := $(shell cargo metadata -q | jq -r '.packages[] | select(.name == "$(APP)") | .version')
 MACOS_X86_64 := target/package/$(APP)-$(VERSION)-x86_64-apple-darwin.tar.gz
