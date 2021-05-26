@@ -10,11 +10,11 @@
 //!
 //! fn main() -> Result<(), Box<dyn Error>> {
 //!     let parsed = parse("6:15pm UTC")?;
-//!     let utc_now = Local::now().with_timezone(&Utc);
+//!     let now = Local::now();
 //!
 //!     assert_eq!(
 //!         parsed.format("%Y-%m-%d %H:%M:%S %z").to_string(),
-//!         format!("{} 18:15:00 +0000", utc_now.format("%Y-%m-%d"))
+//!         format!("{} 18:15:00 +0000", now.format("%Y-%m-%d"))
 //!     );
 //!
 //!     Ok(())
@@ -73,6 +73,8 @@
 //!     assert!(result.is_ok())
 //! }
 //! ```
+
+pub mod timezone;
 
 use anyhow::{anyhow, Error, Result};
 use chrono::prelude::*;
@@ -273,28 +275,25 @@ fn parse_ymd_hms_nanos(input: &str) -> Option<Result<DateTime<Utc>>> {
 // 2017-11-25 13:31 PST
 fn parse_ymd_hms_z(input: &str) -> Option<Result<DateTime<Utc>>> {
     match Regex::new(
-        r"^(?P<dt>[0-9]{4}-[0-9]{2}-[0-9]{2}\s+[0-9]{2}:[0-9]{2}(:[0-9]{2})?)\s+(?P<tz>[a-zA-Z0-9]{3,4})$",
+        r"^(?P<dt>[0-9]{4}-[0-9]{2}-[0-9]{2}\s+[0-9]{2}:[0-9]{2}(:[0-9]{2})?)\s+(?P<tz>[+-:a-zA-Z0-9]{3,6})$",
     ).map_err(Error::msg) {
         Ok(re) => {
             if let Some(caps) = re.captures(input) {
                 if let Some(matched_dt) = caps.name("dt") {
                     if let Some(matched_tz) = caps.name("tz") {
-                        return NaiveDateTime::parse_from_str(matched_dt.as_str(), "%Y-%m-%d %H:%M:%S")
-                            .or_else(|_| {
-                                NaiveDateTime::parse_from_str(matched_dt.as_str(), "%Y-%m-%d %H:%M")
-                            })
-                            .ok()
-                            .and_then(|parsed| {
-                                DateTime::parse_from_rfc2822(
-                                    (parsed.format("%a, %d %b %Y %H:%M:%S").to_string()
-                                        + " "
-                                        + tz_2822(matched_tz.as_str()).as_ref())
-                                    .as_ref(),
-                                )
-                                .ok()
-                            })
-                            .map(|datetime| datetime.with_timezone(&Utc))
-                            .map(Ok)
+                        return match timezone::parse(matched_tz.as_str()) {
+                            Ok(offset) => {
+                                NaiveDateTime::parse_from_str(matched_dt.as_str(), "%Y-%m-%d %H:%M:%S")
+                                    .or_else(|_| {
+                                        NaiveDateTime::parse_from_str(matched_dt.as_str(), "%Y-%m-%d %H:%M")
+                                    })
+                                    .ok()
+                                    .and_then(|parsed| offset.from_local_datetime(&parsed).single())
+                                    .map(|datetime| datetime.with_timezone(&Utc))
+                                    .map(Ok)
+                            },
+                            Err(err) => Some(Err(err))
+                        }
                     }
                 }
             }
@@ -316,29 +315,29 @@ fn parse_ymd(input: &str) -> Option<Result<DateTime<Utc>>> {
 
 // 2021-02-21 PST
 fn parse_ymd_z(input: &str) -> Option<Result<DateTime<Utc>>> {
-    match Regex::new(r"^(?P<date>[0-9]{4}-[0-9]{2}-[0-9]{2})\s+(?P<tz>[a-zA-Z0-9]{3,4})$")
+    match Regex::new(r"^(?P<date>[0-9]{4}-[0-9]{2}-[0-9]{2})\s+(?P<tz>[+-:a-zA-Z0-9]{3,6})$")
         .map_err(Error::msg)
     {
         Ok(re) => {
             if let Some(caps) = re.captures(input) {
                 if let Some(matched_date) = caps.name("date") {
                     if let Some(matched_tz) = caps.name("tz") {
-                        return NaiveDate::parse_from_str(matched_date.as_str(), "%Y-%m-%d")
-                            .ok()
-                            .and_then(|parsed| {
-                                DateTime::parse_from_rfc2822(
-                                    (parsed
-                                        .and_time(Local::now().time())
-                                        .format("%a, %d %b %Y %H:%M:%S")
-                                        .to_string()
-                                        + " "
-                                        + tz_2822(matched_tz.as_str()).as_ref())
-                                    .as_ref(),
-                                )
-                                .ok()
-                            })
-                            .map(|datetime| datetime.with_timezone(&Utc))
-                            .map(Ok);
+                        return match timezone::parse(matched_tz.as_str()) {
+                            Ok(offset) => {
+                                NaiveDate::parse_from_str(matched_date.as_str(), "%Y-%m-%d")
+                                    .ok()
+                                    .and_then(|parsed| {
+                                        offset
+                                            .from_local_datetime(
+                                                &parsed.and_time(Local::now().time()),
+                                            )
+                                            .single()
+                                    })
+                                    .map(|datetime| datetime.with_timezone(&Utc))
+                                    .map(Ok)
+                            }
+                            Err(err) => Some(Err(err)),
+                        };
                     }
                 }
             }
@@ -366,32 +365,24 @@ fn parse_hms_imp(input: &str) -> Option<Result<DateTime<Utc>>> {
 // 6:00 AM PST
 fn parse_hms_imp_z(input: &str) -> Option<Result<DateTime<Utc>>> {
     match Regex::new(
-        r"^(?P<time>[0-9]{1,2}:[0-9]{2}(:[0-9]{2})?(\s*(am|pm|AM|PM)?))\s+(?P<tz>[a-zA-Z0-9]{3,4})$",
+        r"^(?P<time>[0-9]{1,2}:[0-9]{2}(:[0-9]{2})?(\s*(am|pm|AM|PM)?))\s+(?P<tz>[+-:a-zA-Z0-9]{3,6})$",
     ).map_err(Error::msg) {
         Ok(re) => {
             if let Some(caps) = re.captures(input) {
                 if let Some(matched_time) = caps.name("time") {
                     if let Some(matched_tz) = caps.name("tz") {
-                        return NaiveTime::parse_from_str(matched_time.as_str(), "%H:%M:%S")
-                            .or_else(|_| NaiveTime::parse_from_str(matched_time.as_str(), "%I:%M%P"))
-                            .or_else(|_| NaiveTime::parse_from_str(matched_time.as_str(), "%I:%M %P"))
-                            .ok()
-                            .and_then(|parsed| {
-                                DateTime::parse_from_rfc2822(
-                                    (Local::now()
-                                        .date()
-                                        .naive_local()
-                                        .and_time(parsed)
-                                        .format("%a, %d %b %Y %H:%M:%S")
-                                        .to_string()
-                                        + " "
-                                        + tz_2822(matched_tz.as_str()).as_ref())
-                                    .as_ref(),
-                                )
-                                .ok()
-                            })
-                            .map(|datetime| datetime.with_timezone(&Utc))
-                            .map(Ok);
+                        return match timezone::parse(matched_tz.as_str()) {
+                            Ok(offset) => {
+                                NaiveTime::parse_from_str(matched_time.as_str(), "%H:%M:%S")
+                                    .or_else(|_| NaiveTime::parse_from_str(matched_time.as_str(), "%I:%M%P"))
+                                    .or_else(|_| NaiveTime::parse_from_str(matched_time.as_str(), "%I:%M %P"))
+                                    .ok()
+                                    .and_then(|parsed| offset.from_local_datetime(&Local::now().date().naive_local().and_time(parsed)).single())
+                                    .map(|datetime| datetime.with_timezone(&Utc))
+                                    .map(Ok)
+                            },
+                            Err(err) => Some(Err(err))
+                        }
                     }
                 }
             }
@@ -405,42 +396,31 @@ fn parse_hms_imp_z(input: &str) -> Option<Result<DateTime<Utc>>> {
 // May 02, 2021 15:51 UTC
 fn parse_bey_hms_z(input: &str) -> Option<Result<DateTime<Utc>>> {
     match Regex::new(
-        r"^(?P<dt>[a-zA-Z]{3}\s+[0-9]{1,2},\s+[0-9]{4}\s+[0-9]{2}:[0-9]{2}(:[0-9]{2})?)\s+(?P<tz>[a-zA-Z0-9]{3,4})$",
+        r"^(?P<dt>[a-zA-Z]{3}\s+[0-9]{1,2},\s+[0-9]{4}\s+[0-9]{2}:[0-9]{2}(:[0-9]{2})?)\s+(?P<tz>[+-:a-zA-Z0-9]{3,6})$",
     ).map_err(Error::msg) {
         Ok(re) => {
             if let Some(caps) = re.captures(input) {
                 if let Some(matched_dt) = caps.name("dt") {
                     if let Some(matched_tz) = caps.name("tz") {
-                        return NaiveDateTime::parse_from_str(matched_dt.as_str(), "%b %e, %Y %H:%M:%S")
-                            .or_else(|_| {
-                                NaiveDateTime::parse_from_str(matched_dt.as_str(), "%b %e, %Y %H:%M")
-                            })
-                            .ok()
-                            .and_then(|parsed| {
-                                DateTime::parse_from_rfc2822(
-                                    (parsed.format("%a, %d %b %Y %H:%M:%S").to_string()
-                                        + " "
-                                        + tz_2822(matched_tz.as_str()).as_ref())
-                                    .as_ref(),
-                                )
-                                .ok()
-                            })
-                            .map(|datetime| datetime.with_timezone(&Utc))
-                            .map(Ok)
+                        return match timezone::parse(matched_tz.as_str()) {
+                            Ok(offset) => {
+                                NaiveDateTime::parse_from_str(matched_dt.as_str(), "%b %e, %Y %H:%M:%S")
+                                    .or_else(|_| {
+                                        NaiveDateTime::parse_from_str(matched_dt.as_str(), "%b %e, %Y %H:%M")
+                                    })
+                                    .ok()
+                                    .and_then(|parsed| offset.from_local_datetime(&parsed).single())
+                                    .map(|datetime| datetime.with_timezone(&Utc))
+                                    .map(Ok)
+                            },
+                            Err(err) => Some(Err(err))
+                        }
                     }
                 }
             }
             None
         }
         Err(err) => Some(Err(err)),
-    }
-}
-
-fn tz_2822(tz: &str) -> String {
-    let upper = tz.to_uppercase();
-    match upper.as_ref() {
-        "UT" | "UTC" => "GMT".to_string(),
-        _ => upper,
     }
 }
 
@@ -804,6 +784,10 @@ mod tests {
                 "2017-11-25 13:31 PST",
                 Utc::ymd(&Utc, 2017, 11, 25).and_hms(21, 31, 0),
             ),
+            (
+                "2017-11-25 13:31:15 UTC",
+                Utc::ymd(&Utc, 2017, 11, 25).and_hms(13, 31, 15),
+            ),
         ];
 
         for &(input, want) in test_cases.iter() {
@@ -844,13 +828,22 @@ mod tests {
 
     #[test]
     fn test_parse_ymd_z() {
-        let test_cases = vec![(
-            "2021-02-21 PST",
-            FixedOffset::west(8 * 3600)
-                .ymd(2021, 2, 21)
-                .and_time(Local::now().time())
-                .map(|dt| dt.with_timezone(&Utc)),
-        )];
+        let test_cases = vec![
+            (
+                "2021-02-21 PST",
+                FixedOffset::west(8 * 3600)
+                    .ymd(2021, 2, 21)
+                    .and_time(Local::now().time())
+                    .map(|dt| dt.with_timezone(&Utc)),
+            ),
+            (
+                "2021-02-21 UTC",
+                FixedOffset::west(0)
+                    .ymd(2021, 2, 21)
+                    .and_time(Local::now().time())
+                    .map(|dt| dt.with_timezone(&Utc)),
+            ),
+        ];
 
         for &(input, want) in test_cases.iter() {
             assert_eq!(
@@ -929,6 +922,13 @@ mod tests {
                     .and_time(NaiveTime::from_hms(6, 0, 0))
                     .map(|dt| dt.with_timezone(&Utc)),
             ),
+            (
+                "6:00pm UTC",
+                FixedOffset::west(0)
+                    .from_local_date(&Local::now().date().naive_local())
+                    .and_time(NaiveTime::from_hms(18, 0, 0))
+                    .map(|dt| dt.with_timezone(&Utc)),
+            ),
         ];
 
         for &(input, want) in test_cases.iter() {
@@ -944,25 +944,25 @@ mod tests {
 
     #[test]
     fn test_parse_bey_hms_z() {
-        assert_eq!(
-            parse_bey_hms_z("May 02, 2021 15:51:31 UTC")
-                .unwrap()
-                .unwrap(),
-            Utc::ymd(&Utc, 2021, 5, 2).and_hms(15, 51, 31)
-        );
-        assert_eq!(
-            parse_bey_hms_z("May 02, 2021 15:51 UTC").unwrap().unwrap(),
-            Utc::ymd(&Utc, 2021, 5, 2).and_hms(15, 51, 0)
-        );
-        assert!(parse_bey_hms_z("not-date-time").is_none());
-    }
+        let test_cases = vec![
+            (
+                "May 02, 2021 15:51:31 UTC",
+                Utc::ymd(&Utc, 2021, 5, 2).and_hms(15, 51, 31),
+            ),
+            (
+                "May 02, 2021 15:51 UTC",
+                Utc::ymd(&Utc, 2021, 5, 2).and_hms(15, 51, 0),
+            ),
+        ];
 
-    #[test]
-    fn test_tz_2822() {
-        assert_eq!(tz_2822("UT"), "GMT");
-        assert_eq!(tz_2822("UTC"), "GMT");
-        assert_eq!(tz_2822("utc"), "GMT");
-        assert_eq!(tz_2822("EST"), "EST");
-        assert_eq!(tz_2822("pdt"), "PDT");
+        for &(input, want) in test_cases.iter() {
+            assert_eq!(
+                parse_bey_hms_z(input).unwrap().unwrap(),
+                want,
+                "parse_bey_hms_z/{}",
+                input
+            )
+        }
+        assert!(parse_bey_hms_z("not-date-time").is_none());
     }
 }
