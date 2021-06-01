@@ -69,6 +69,13 @@ release: cross
 checksum:
 	shasum -a 256 target/package/$(APP)-$(VERSION)-*.tar.gz > target/package/$(APP)-$(VERSION)-checksums.txt
 
+version:
+	@grep -rn --color \
+		--exclude-dir ./target \
+		--exclude-dir ./.git \
+		--exclude Cargo.lock \
+		--fixed-strings '$(VERSION)' .
+
 .PHONY: publish
 publish:
 	cargo publish --manifest-path dateparser/Cargo.toml
