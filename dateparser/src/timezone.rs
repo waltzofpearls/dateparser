@@ -6,23 +6,6 @@ use chrono::offset::FixedOffset;
 ///
 /// The additional `colon` may be used to parse a mandatory or optional `:` between hours and minutes,
 /// and should return a valid FixedOffset or `Err` when parsing fails.
-///
-/// ```
-/// use chrono::prelude::*;
-/// use dateparser::timezone::parse;
-/// use std::error::Error;
-///
-/// fn main() -> Result<(), Box<dyn Error>> {
-///     assert_eq!(parse("-0800")?, FixedOffset::west(8 * 3600));
-///     assert_eq!(parse("+10:00")?, FixedOffset::east(10 * 3600));
-///     assert_eq!(parse("PST")?, FixedOffset::west(8 * 3600));
-///     assert_eq!(parse("PDT")?, FixedOffset::west(7 * 3600));
-///     assert_eq!(parse("UTC")?, FixedOffset::west(0));
-///     assert_eq!(parse("GMT")?, FixedOffset::west(0));
-///
-///     Ok(())
-/// }
-/// ```
 pub fn parse(s: &str) -> Result<FixedOffset> {
     let offset = if s.contains(':') {
         parse_offset_internal(s, colon_or_space, false)?
@@ -138,7 +121,7 @@ fn equals(s: &str, pattern: &str) -> bool {
 }
 
 /// Consumes any number (including zero) of colon or spaces.
-pub fn colon_or_space(s: &str) -> Result<&str> {
+fn colon_or_space(s: &str) -> Result<&str> {
     Ok(s.trim_start_matches(|c: char| c == ':' || c.is_whitespace()))
 }
 
@@ -147,7 +130,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_parse() {
+    fn parse() {
         let test_cases = vec![
             ("-0800", FixedOffset::west(8 * 3600)),
             ("+10:00", FixedOffset::east(10 * 3600)),
@@ -158,7 +141,7 @@ mod tests {
         ];
 
         for &(input, want) in test_cases.iter() {
-            assert_eq!(parse(input).unwrap(), want, "parse/{}", input)
+            assert_eq!(super::parse(input).unwrap(), want, "parse/{}", input)
         }
     }
 }
