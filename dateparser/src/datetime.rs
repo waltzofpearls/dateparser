@@ -321,6 +321,8 @@ where
 
         let now = Utc::now().with_timezone(self.tz);
         NaiveTime::parse_from_str(input, "%H:%M:%S")
+            .or_else(|_| NaiveTime::parse_from_str(input, "%H:%M"))
+            .or_else(|_| NaiveTime::parse_from_str(input, "%I:%M:%S %P"))
             .or_else(|_| NaiveTime::parse_from_str(input, "%I:%M %P"))
             .ok()
             .and_then(|parsed| now.date().and_time(parsed))
@@ -350,6 +352,7 @@ where
                     Ok(offset) => {
                         let now = Utc::now().with_timezone(&offset);
                         NaiveTime::parse_from_str(input, "%H:%M:%S %Z")
+                            .or_else(|_| NaiveTime::parse_from_str(input, "%H:%M %Z"))
                             .or_else(|_| NaiveTime::parse_from_str(input, "%I:%M:%S %P %Z"))
                             .or_else(|_| NaiveTime::parse_from_str(input, "%I:%M %P %Z"))
                             .ok()

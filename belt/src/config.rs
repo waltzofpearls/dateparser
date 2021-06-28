@@ -210,7 +210,7 @@ mod tests {
 
         config.list().expect("failed to list configured timezons");
         let listed = String::from_utf8_lossy(&buf);
-        assert_eq!(listed.contains("UTC"), false);
+        assert!(!listed.contains("UTC"));
     }
 
     #[test]
@@ -237,6 +237,6 @@ mod tests {
         for tz in Store::default().timezones {
             assert!(listed.contains(&tz));
         }
-        assert_eq!(listed.contains("Europe/Berlin"), false);
+        assert!(!listed.contains("Europe/Berlin"));
     }
 }
