@@ -194,13 +194,14 @@
 /// use std::error::Error;
 ///
 /// fn main() -> Result<(), Box<dyn Error>> {
-///     let parse_with_local = Parse::new(&Local);
+///     let utc_now_time = Utc::now().time();
+///     let parse_with_local = Parse::new(&Local, utc_now_time);
 ///     assert_eq!(
 ///         parse_with_local.parse("2021-06-05 06:19 PM")?,
 ///         Local.ymd(2021, 6, 5).and_hms(18, 19, 0).with_timezone(&Utc),
 ///     );
 ///
-///     let parse_with_utc = Parse::new(&Utc);
+///     let parse_with_utc = Parse::new(&Utc, utc_now_time);
 ///     assert_eq!(
 ///         parse_with_utc.parse("2021-06-05 06:19 PM")?,
 ///         Utc.ymd(2021, 6, 5).and_hms(18, 19, 0),
@@ -281,7 +282,7 @@ impl std::str::FromStr for DateTimeUtc {
 /// );
 /// ```
 pub fn parse(input: &str) -> Result<DateTime<Utc>> {
-    Parse::new(&Local).parse(input)
+    Parse::new(&Local, Utc::now().time()).parse(input)
 }
 
 /// Similar to [`parse()`], this function takes a datetime string and a custom [`chrono::TimeZone`],
@@ -312,7 +313,54 @@ pub fn parse(input: &str) -> Result<DateTime<Utc>> {
 /// );
 /// ```
 pub fn parse_with_timezone<Tz2: TimeZone>(input: &str, tz: &Tz2) -> Result<DateTime<Utc>> {
-    Parse::new(tz).parse(input)
+    Parse::new(tz, Utc::now().time()).parse(input)
+}
+
+/// Similar to [`parse()`] and [`parse_with_timezone()`], this function takes a datetime string, a
+/// custom [`chrono::TimeZone`] and a default naive time. In addition to assuming timezone when
+/// it's not given in datetime string, this function also use provided default naive time in parsed
+/// [`chrono::DateTime`].
+///
+/// ```
+/// use dateparser::parse_with;
+/// use chrono::prelude::*;
+///
+/// let utc_now_time = Utc::now().time();
+/// let local_now_time = Local::now().time();
+/// let midnight = NaiveTime::from_hms(0, 0, 0);
+///
+/// let parsed_in_local_with_utc_now_time = parse_with("2021-10-09", &Local, utc_now_time);
+/// let parsed_in_local_with_utc_midnight = parse_with("2021-10-09", &Local, midnight);
+/// let parsed_in_utc_with_utc_now_time = parse_with("2021-10-09", &Utc, utc_now_time);
+/// let parsed_in_utc_with_utc_midnight = parse_with("2021-10-09", &Utc, midnight);
+///
+/// assert_eq!(
+///     parsed_in_local_with_utc_now_time.unwrap().trunc_subsecs(0),
+///     Local.ymd(2021, 10, 9).and_time(local_now_time).unwrap().with_timezone(&Utc).trunc_subsecs(0),
+///     "parsed_in_local_with_utc_now_time"
+/// );
+/// assert_eq!(
+///     parsed_in_local_with_utc_midnight.unwrap().trunc_subsecs(0),
+///     Local.ymd(2021, 10, 9).and_time(local_now_time).unwrap().with_timezone(&Utc).date().and_hms(0, 0, 0),
+///     "parsed_in_local_with_utc_midnight"
+/// );
+/// assert_eq!(
+///     parsed_in_utc_with_utc_now_time.unwrap(),
+///     Utc.ymd(2021, 10, 9).and_time(utc_now_time).unwrap(),
+///     "parsed_in_utc_with_utc_now_time"
+/// );
+/// assert_eq!(
+///     parsed_in_utc_with_utc_midnight.unwrap().trunc_subsecs(0),
+///     Utc.ymd(2021, 10, 9).and_hms(0, 0, 0),
+///     "parsed_in_utc_with_utc_midnight"
+/// );
+/// ```
+pub fn parse_with<Tz2: TimeZone>(
+    input: &str,
+    tz: &Tz2,
+    default_time: NaiveTime,
+) -> Result<DateTime<Utc>> {
+    Parse::new(tz, default_time).parse(input)
 }
 
 #[cfg(test)]
