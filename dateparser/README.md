@@ -23,7 +23,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-dateparser = "0.1.5"
+dateparser = "0.1.6"
 ```
 
 And then use `dateparser` in your code:
@@ -57,7 +57,7 @@ Convert returned `DateTime<Utc>` to pacific time zone datetime with `chrono-tz`:
 ```toml
 [dependencies]
 chrono-tz = "0.5.3"
-dateparser = "0.1.5"
+dateparser = "0.1.6"
 ```
 
 ```rust
@@ -82,13 +82,35 @@ use std::error::Error;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let parsed_in_local = parse_with_timezone("6:15pm", &Local)?;
-    println!("{:#?}" parsed_in_local);
+    println!("{:#?}", parsed_in_local);
 
     let parsed_in_utc = parse_with_timezone("6:15pm", &Utc)?;
-    println!("{:#?}" parsed_in_utc);
+    println!("{:#?}", parsed_in_utc);
 
     let parsed_in_pacific = parse_with_timezone("6:15pm", &Pacific)?;
-    println!("{:#?}" parsed_in_pacific);
+    println!("{:#?}", parsed_in_pacific);
+
+    Ok(())
+}
+```
+
+Parse with a custom timezone offset and default time when those are not given in datetime string.
+By default, `parse` and `parse_with_timezone` uses `Utc::now().time()` as `default_time`.
+
+```rust
+use dateparser::parse_with;
+use chrono::{
+    offset::{Local, Utc},
+    naive::NaiveTime,
+};
+use std::error::Error;
+
+fn main() -> Result<(), Box<dyn Error>> {
+    let parsed_in_local = parse_with("2021-10-09", &Local, NaiveTime::from_hms(0, 0, 0))?;
+    println!("{:#?}", parsed_in_local);
+
+    let parsed_in_utc = parse_with("2021-10-09", &Utc, NaiveTime::from_hms(0, 0, 0))?;
+    println!("{:#?}", parsed_in_utc);
 
     Ok(())
 }
