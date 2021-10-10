@@ -73,10 +73,10 @@ where
                         self.config.reset()?;
                         self.config.list()?;
                     } else if let Some(add) = &c.add {
-                        self.config.add(&add)?;
+                        self.config.add(add)?;
                         self.config.list()?;
                     } else if let Some(delete) = &c.delete {
-                        self.config.delete(&delete)?;
+                        self.config.delete(delete)?;
                         self.config.list()?;
                     }
                 }
@@ -118,8 +118,7 @@ mod tests {
         }
         let re = Regex::new(r"[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} [0-9-+]{5}")
             .expect("failed to parse regex");
-        let matches: Vec<&str> = re.find_iter(&printed).map(|mat| mat.as_str()).collect();
-        assert_eq!(matches.len(), num_timezones + 1); // num_timezones + local
+        assert_eq!(re.find_iter(&printed).count(), num_timezones + 1); // num_timezones + local
     }
 
     #[test]
