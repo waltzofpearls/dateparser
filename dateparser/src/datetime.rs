@@ -182,7 +182,7 @@ where
         }
 
         DateTime::parse_from_str(input, "%Y-%m-%d %H:%M:%S%#z")
-            .or_else(|_| DateTime::parse_from_str(input, "%Y-%m-%d %H:%M:%S.%f%#z"))
+            .or_else(|_| DateTime::parse_from_str(input, "%Y-%m-%d %H:%M:%S%.f%#z"))
             .or_else(|_| DateTime::parse_from_str(input, "%Y-%m-%d %H:%M%#z"))
             .ok()
             .map(|parsed| parsed.with_timezone(&Utc))
@@ -211,7 +211,7 @@ where
         self.tz
             .datetime_from_str(input, "%Y-%m-%d %H:%M:%S")
             .or_else(|_| self.tz.datetime_from_str(input, "%Y-%m-%d %H:%M"))
-            .or_else(|_| self.tz.datetime_from_str(input, "%Y-%m-%d %H:%M:%S.%f"))
+            .or_else(|_| self.tz.datetime_from_str(input, "%Y-%m-%d %H:%M:%S%.f"))
             .or_else(|_| self.tz.datetime_from_str(input, "%Y-%m-%d %I:%M:%S %P"))
             .or_else(|_| self.tz.datetime_from_str(input, "%Y-%m-%d %I:%M %P"))
             .ok()
@@ -244,7 +244,7 @@ where
                 return match timezone::parse(matched_tz.as_str().trim()) {
                     Ok(offset) => parse_from_str(input, "%Y-%m-%d %H:%M:%S %Z")
                         .or_else(|_| parse_from_str(input, "%Y-%m-%d %H:%M %Z"))
-                        .or_else(|_| parse_from_str(input, "%Y-%m-%d %H:%M:%S.%f %Z"))
+                        .or_else(|_| parse_from_str(input, "%Y-%m-%d %H:%M:%S%.f %Z"))
                         .ok()
                         .and_then(|parsed| offset.from_local_datetime(&parsed).single())
                         .map(|datetime| datetime.with_timezone(&Utc))
@@ -532,7 +532,7 @@ where
         self.tz
             .datetime_from_str(&dt, "%d %B %Y %H:%M:%S")
             .or_else(|_| self.tz.datetime_from_str(&dt, "%d %B %Y %H:%M"))
-            .or_else(|_| self.tz.datetime_from_str(&dt, "%d %B %Y %H:%M:%S.%f"))
+            .or_else(|_| self.tz.datetime_from_str(&dt, "%d %B %Y %H:%M:%S%.f"))
             .or_else(|_| self.tz.datetime_from_str(&dt, "%d %B %Y %I:%M:%S %P"))
             .or_else(|_| self.tz.datetime_from_str(&dt, "%d %B %Y %I:%M %P"))
             .ok()
@@ -594,12 +594,12 @@ where
         self.tz
             .datetime_from_str(input, "%m/%d/%y %H:%M:%S")
             .or_else(|_| self.tz.datetime_from_str(input, "%m/%d/%y %H:%M"))
-            .or_else(|_| self.tz.datetime_from_str(input, "%m/%d/%y %H:%M:%S.%f"))
+            .or_else(|_| self.tz.datetime_from_str(input, "%m/%d/%y %H:%M:%S%.f"))
             .or_else(|_| self.tz.datetime_from_str(input, "%m/%d/%y %I:%M:%S %P"))
             .or_else(|_| self.tz.datetime_from_str(input, "%m/%d/%y %I:%M %P"))
             .or_else(|_| self.tz.datetime_from_str(input, "%m/%d/%Y %H:%M:%S"))
             .or_else(|_| self.tz.datetime_from_str(input, "%m/%d/%Y %H:%M"))
-            .or_else(|_| self.tz.datetime_from_str(input, "%m/%d/%Y %H:%M:%S.%f"))
+            .or_else(|_| self.tz.datetime_from_str(input, "%m/%d/%Y %H:%M:%S%.f"))
             .or_else(|_| self.tz.datetime_from_str(input, "%m/%d/%Y %I:%M:%S %P"))
             .or_else(|_| self.tz.datetime_from_str(input, "%m/%d/%Y %I:%M %P"))
             .ok()
@@ -654,7 +654,7 @@ where
         self.tz
             .datetime_from_str(input, "%Y/%m/%d %H:%M:%S")
             .or_else(|_| self.tz.datetime_from_str(input, "%Y/%m/%d %H:%M"))
-            .or_else(|_| self.tz.datetime_from_str(input, "%Y/%m/%d %H:%M:%S.%f"))
+            .or_else(|_| self.tz.datetime_from_str(input, "%Y/%m/%d %H:%M:%S%.f"))
             .or_else(|_| self.tz.datetime_from_str(input, "%Y/%m/%d %I:%M:%S %P"))
             .or_else(|_| self.tz.datetime_from_str(input, "%Y/%m/%d %I:%M %P"))
             .ok()
