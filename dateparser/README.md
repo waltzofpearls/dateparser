@@ -23,7 +23,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-dateparser = "0.1.6"
+dateparser = "0.1.7"
 ```
 
 And then use `dateparser` in your code:
@@ -56,8 +56,8 @@ Convert returned `DateTime<Utc>` to pacific time zone datetime with `chrono-tz`:
 
 ```toml
 [dependencies]
-chrono-tz = "0.5.3"
-dateparser = "0.1.6"
+chrono-tz = "0.6.3"
+dateparser = "0.1.7"
 ```
 
 ```rust
