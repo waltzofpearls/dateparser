@@ -467,7 +467,7 @@ where
                 let parse_from_str = NaiveDateTime::parse_from_str;
                 return match timezone::parse(matched_tz.as_str().trim()) {
                     Ok(offset) => {
-                        let dt = input.replace(",", "").replace("at", "");
+                        let dt = input.replace(',', "").replace("at", "");
                         parse_from_str(&dt, "%B %d %Y %H:%M:%S %Z")
                             .or_else(|_| parse_from_str(&dt, "%B %d %Y %H:%M %Z"))
                             .or_else(|_| parse_from_str(&dt, "%B %d %Y %I:%M:%S %P %Z"))
@@ -881,15 +881,15 @@ mod tests {
             ),
             (
                 "2021-05-02 23:31:36.0741-07",
-                Utc.ymd(2021, 5, 3).and_hms_nano(6, 31, 36, 741),
+                Utc.ymd(2021, 5, 3).and_hms_micro(6, 31, 36, 74100),
             ),
             (
                 "2021-05-02 23:31:39.12689-07",
-                Utc.ymd(2021, 5, 3).and_hms_nano(6, 31, 39, 12689),
+                Utc.ymd(2021, 5, 3).and_hms_micro(6, 31, 39, 126890),
             ),
             (
                 "2019-11-29 08:15:47.624504-08",
-                Utc.ymd(2019, 11, 29).and_hms_nano(16, 15, 47, 624504),
+                Utc.ymd(2019, 11, 29).and_hms_micro(16, 15, 47, 624504),
             ),
             (
                 "2017-07-19 03:21:51+00:00",
@@ -920,7 +920,7 @@ mod tests {
             ),
             (
                 "2021-04-30 21:14:10.052282",
-                Utc.ymd(2021, 4, 30).and_hms_nano(21, 14, 10, 52282),
+                Utc.ymd(2021, 4, 30).and_hms_micro(21, 14, 10, 52282),
             ),
             (
                 "2014-04-26 05:24:37 PM",
@@ -928,11 +928,11 @@ mod tests {
             ),
             (
                 "2014-04-26 17:24:37.123",
-                Utc.ymd(2014, 4, 26).and_hms_nano(17, 24, 37, 123),
+                Utc.ymd(2014, 4, 26).and_hms_milli(17, 24, 37, 123),
             ),
             (
                 "2014-04-26 17:24:37.3186369",
-                Utc.ymd(2014, 4, 26).and_hms_nano(17, 24, 37, 3186369),
+                Utc.ymd(2014, 4, 26).and_hms_nano(17, 24, 37, 318636900),
             ),
             (
                 "2012-08-03 18:31:59.257000000",
@@ -986,7 +986,7 @@ mod tests {
             ),
             (
                 "2015-09-30 18:48:56.35272715 UTC",
-                Utc.ymd(2015, 9, 30).and_hms_nano(18, 48, 56, 35272715),
+                Utc.ymd(2015, 9, 30).and_hms_nano(18, 48, 56, 352727150),
             ),
         ];
 
@@ -1327,7 +1327,7 @@ mod tests {
             ("12 Feb 2006 19:17", Utc.ymd(2006, 2, 12).and_hms(19, 17, 0)),
             (
                 "14 May 2019 19:11:40.164",
-                Utc.ymd(2019, 5, 14).and_hms_nano(19, 11, 40, 164),
+                Utc.ymd(2019, 5, 14).and_hms_milli(19, 11, 40, 164),
             ),
         ];
 
@@ -1403,7 +1403,7 @@ mod tests {
             ),
             (
                 "03/19/2012 10:11:59.3186369",
-                Utc.ymd(2012, 3, 19).and_hms_nano(10, 11, 59, 3186369),
+                Utc.ymd(2012, 3, 19).and_hms_nano(10, 11, 59, 318636900),
             ),
         ];
 
@@ -1467,7 +1467,7 @@ mod tests {
             ),
             (
                 "2012/03/19 10:11:59.3186369",
-                Utc.ymd(2012, 3, 19).and_hms_nano(10, 11, 59, 3186369),
+                Utc.ymd(2012, 3, 19).and_hms_nano(10, 11, 59, 318636900),
             ),
         ];
 

@@ -39,7 +39,7 @@ where
         let ymd_hm_z = "%Y-%m-%d %H:%M %Z";
 
         if self.opts.short {
-            writeln!(&mut self.config.out, "{}", local.format(ymd_hms_z))?;
+            writeln!(self.config.out, "{}", local.format(ymd_hms_z))?;
         } else {
             let mut table = Table::new();
             table.set_titles(row!["Zone", "Date & Time"]);
@@ -67,7 +67,7 @@ where
                 Subcommands::Config(c) => {
                     if c.list {
                         let path = self.config.path();
-                        writeln!(&mut self.config.out, "{}", path.cyan().bold())?;
+                        writeln!(self.config.out, "{}", path.cyan().bold())?;
                         self.config.list()?;
                     } else if c.reset {
                         self.config.reset()?;

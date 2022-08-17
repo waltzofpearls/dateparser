@@ -21,7 +21,7 @@ fn parse_offset_2822(s: &str) -> Result<i32> {
         .as_bytes()
         .iter()
         .position(|&c| !matches!(c, b'a'..=b'z' | b'A'..=b'Z'))
-        .unwrap_or_else(|| s.len());
+        .unwrap_or(s.len());
     if upto > 0 {
         let name = &s[..upto];
         let offset_hours = |o| Ok(o * 3600);

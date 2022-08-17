@@ -77,12 +77,12 @@ where
             confy::store(&self.app, &self.store).map_err(|err| format!("{}", err))
         }) {
             Ok(_) => writeln!(
-                &mut self.out,
+                self.out,
                 "{}",
                 format!("Added '{}' to config.", to_add).green().bold()
             )?,
             Err(err) => writeln!(
-                &mut self.out,
+                self.out,
                 "{}",
                 format!("Could not add time zone: {}.", err).red().bold()
             )?,
@@ -94,14 +94,14 @@ where
         self.store.timezones.retain(|tz| tz != to_delete);
         match confy::store(&self.app, &self.store) {
             Ok(_) => writeln!(
-                &mut self.out,
+                self.out,
                 "{}",
                 format!("Deleted '{}' from config.", to_delete)
                     .green()
                     .bold()
             )?,
             Err(err) => writeln!(
-                &mut self.out,
+                self.out,
                 "{}",
                 format!("Could not delete time zone: {}.", err).red().bold()
             )?,
@@ -113,12 +113,12 @@ where
         self.store.timezones = Store::default().timezones;
         match confy::store(&self.app, &self.store) {
             Ok(_) => writeln!(
-                &mut self.out,
+                self.out,
                 "{}",
                 "Config has been reset to default.".green().bold()
             )?,
             Err(err) => writeln!(
-                &mut self.out,
+                self.out,
                 "{}",
                 format!("Could not reset time zones: {}", err).red().bold()
             )?,

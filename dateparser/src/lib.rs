@@ -509,7 +509,7 @@ mod tests {
                 "14 May 2019 19:11:40.164",
                 Local
                     .ymd(2019, 5, 14)
-                    .and_hms_nano(19, 11, 40, 164)
+                    .and_hms_milli(19, 11, 40, 164)
                     .with_timezone(&Utc),
                 Trunc::None,
             ),
@@ -743,7 +743,7 @@ mod tests {
             (
                 "month_dmy_hms",
                 "14 May 2019 19:11:40.164",
-                Utc.ymd(2019, 5, 14).and_hms_nano(19, 11, 40, 164),
+                Utc.ymd(2019, 5, 14).and_hms_milli(19, 11, 40, 164),
                 Trunc::None,
             ),
             (
