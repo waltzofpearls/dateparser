@@ -249,6 +249,7 @@ use chrono::prelude::*;
 ///     Err(err) => println!("ERROR from parsing datetime string: {}", err)
 /// }
 /// ```
+#[derive(Clone, Debug)]
 pub struct DateTimeUtc(pub DateTime<Utc>);
 
 impl std::str::FromStr for DateTimeUtc {
