@@ -1,0 +1,122 @@
+on:
+  push:
+    tags:
+      - "v*.*.*" # push events to matching v*.*.*, i.e. v0.1.8, v20.15.10
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        include:
+          - { arch: "x86_64", libc: "musl" }
+          - { arch: "i686", libc: "musl" }
+          - { arch: "aarch64", libc: "musl" }
+          - { arch: "armv7", libc: "musleabihf" }
+          - { arch: "arm", libc: "musleabihf" }
+    steps:
+      - uses: actions/checkout@v3
+      - name: Pull Docker image
+        run: docker pull messense/rust-musl-cross:${{ matrix.arch }}-${{ matrix.libc }}
+      - name: Build in Docker
+        run: |
+          docker run --rm -i \
+            -v "$(pwd)":/home/rust/src messense/rust-musl-cross:${{ matrix.arch }}-${{ matrix.libc }} \
+            cargo build --release
+      - name: Strip binary
+        run: |
+          docker run --rm -i \
+            -v "$(pwd)":/home/rust/src messense/rust-musl-cross:${{ matrix.arch }}-${{ matrix.libc }} \
+            musl-strip -s /home/rust/src/target/${{ matrix.arch }}-unknown-linux-${{ matrix.libc }}/release/belt
+      - name: Make package
+        run: make package arch=${{ matrix.arch }} libc=${{ matrix.libc }}
+      - uses: actions/upload-artifact@v3
+        with:
+          name: "linux-${{ matrix.arch }}-${{ matrix.libc }}"
+          path: "target/package/*-*.*.*-${{ matrix.arch }}-unknown-linux-${{ matrix.libc }}.tar.gz"
+          retention-days: 5
+
+  build-macos:
+    runs-on: macos-11
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+      - name: Build
+        run: cargo build --release --target x86_64-apple-darwin
+      - name: Make package
+        run: make package
+      - uses: actions/upload-artifact@v3
+        with:
+          name: macos-x86_64
+          path: target/package/*-*.*.*-macos-x86_64.zip
+          retention-days: 5
+
+  build-windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+      - name: Build
+        run: cargo build --release --target x86_64-pc-windows-msvc
+      - name: Make package
+        run: make package
+      - uses: actions/upload-artifact@v3
+        with:
+          name: windows-x86_64-msvc
+          path: target/package/*-*-windows-x86_64-msvc.zip
+          retention-days: 5
+
+  release:
+    needs: [ build-linux, build-macos, build-windows ]
+    name: Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+      - name: Move to files around
+        run: |
+          mkdir -p target/package
+          [ -d macos-x86_64  ]          && mv macos-x86_64/* target/package           || true
+          [ -d windows-x86_64-msvc ]    && mv windows-x86_64-msvc/* target/package    || true
+          [ -d linux-x86_64-musl ]      && mv linux-x86_64-musl/* target/package      || true
+          [ -d linux-i686-musl ]        && mv linux-i686-musl/* target/package        || true
+          [ -d linux-aarch64-musl ]     && mv linux-aarch64-musl/* target/package     || true
+          [ -d linux-armv7-musleabihf ] && mv linux-armv7-musleabihf/* target/package || true
+          [ -d linux-arm-musleabihf ]   && mv linux-arm-musleabihf/* target/package   || true
+      - name: Create checksum file
+        run: shasum -a 256 target/package/*-*.*.*-*.{tar.gz,zip} > target/package/checksums.txt
+      - name: List files
+        run: ls -ahl target/package
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            target/package/*-*.*.*-aarch64-unknown-linux-musl.tar.gz
+            target/package/*-*.*.*-arm-unknown-linux-musleabihf.tar.gz
+            target/package/*-*.*.*-armv7-unknown-linux-musleabihf.tar.gz
+            target/package/*-*.*.*-i686-unknown-linux-musl.tar.gz
+            target/package/*-*.*.*-macos-x86_64.zip
+            target/package/*-*.*.*-windows-x86_64-msvc.zip
+            target/package/*-*.*.*-x86_64-unknown-linux-musl.tar.gz
+            target/package/checksums.txt
+            README.md
+            LICENSE
+
+  cargo-publish:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Cargo publish
+        if: startsWith(github.ref, 'refs/tags/')
+        run: make publish
