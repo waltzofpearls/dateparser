@@ -82,4 +82,4 @@ release: ## Make a new tag based on the version from Cargo.toml and push to GitH
 
 .PHONY: publish
 publish: ## Publish to crates.io
-	cargo publish --manifest-path dateparser/Cargo.toml
+	cargo publish --manifest-path dateparser/Cargo.toml --token $(token)

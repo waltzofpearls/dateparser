@@ -1,5 +1,9 @@
 name: ci
-on: [ push, pull_request ]
+on:
+  push: # run tests on every git push except pushing tags
+    tags-ignore:
+      - '**'
+  pull_request: # run tests on every pull request
 
 jobs:
   check:
