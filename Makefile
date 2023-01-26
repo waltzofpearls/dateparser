@@ -41,33 +41,25 @@ bench:
 
 APP = belt
 VERSION := $(shell cargo metadata -q | jq -r '.packages[] | select(.name == "$(APP)") | .version')
-MACOS_X86_64 := target/package/$(APP)-$(VERSION)-x86_64-apple-darwin.tar.gz
-LINUX_DYN_X86_64 := target/package/$(APP)-$(VERSION)-x86_64-unknown-linux-gnu.tar.gz
-LINUX_STAT_X86_64 := target/package/$(APP)-$(VERSION)-x86_64-unknown-linux-musl.tar.gz
-LINUX_ARMV7 := target/package/$(APP)-$(VERSION)-armv7-unknown-linux-gnueabihf.tar.gz
+UNAME_S := $(shell uname -s)
 
-.PHONY: release
-release: cross
-	@echo "[release] Cleaning up before packaging..."
+.PHONY: package
+package:
+ifdef OS # windows
 	mkdir -p target/package
-	rm -f $(MACOS_X86_64) $(LINUX_X86_64) $(LINUX_ARMV7)
-	@echo "[release] Creating package for MacOS x86_64..."
-	tar -cvzf $(MACOS_X86_64) \
-		-C $$PWD/target/release $(APP)
-	@echo "[release] Creating package for Linux (dynamic) x86_64..."
-	tar -cvzf $(LINUX_DYN_X86_64) \
-		-C $$PWD/target/x86_64-unknown-linux-gnu/release $(APP)
-	@echo "[release] Creating package for Linux (static) x86_64..."
-	tar -cvzf $(LINUX_STAT_X86_64) \
-		-C $$PWD/target/x86_64-unknown-linux-musl/release $(APP)
-	@echo "[release] Creating package for Linux armv7..."
-	tar -cvzf $(LINUX_ARMV7) \
-		-C $$PWD/target/armv7-unknown-linux-gnueabihf/release $(APP)
-	@make checksum
-
-.PHONY: checksum
-checksum:
-	shasum -a 256 target/package/$(APP)-$(VERSION)-*.tar.gz > target/package/$(APP)-$(VERSION)-checksums.txt
+	tar -a -cvf target/package/$(APP)-$(VERSION)-windows-x86_64-msvc.zip \
+		-C $$PWD/target/x86_64-pc-windows-msvc/release $(APP).exe \
+		-C $$PWD LICENSE README.md
+else ifeq ($(UNAME_S),Darwin) # macOS
+	mkdir -p target/package
+	zip -j target/package/$(APP)-$(VERSION)-macos-x86_64.zip \
+		target/x86_64-apple-darwin/release/$(APP) LICENSE README.md
+else ifeq ($(UNAME_S),Linux) # linux
+	sudo mkdir -p target/package
+	sudo tar -z -cvf target/package/$(APP)-$(VERSION)-$(arch)-unknown-linux-$(libc).tar.gz \
+		-C $$PWD/target/$(arch)-unknown-linux-$(libc)/release $(APP) \
+		-C $$PWD LICENSE README.md
+endif
 
 version:
 	@grep -rn --color \
