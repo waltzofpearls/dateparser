@@ -226,15 +226,15 @@ make show-version-files
 It will output something like this:
 
 ```shell
-./dateparser/Cargo.toml:3:version = "0.1.8"
-./dateparser/README.md:26:dateparser = "0.1.8"
-./dateparser/README.md:60:dateparser = "0.1.8"
-./belt/Cargo.toml:3:version = "0.1.8"
+./dateparser/Cargo.toml:3:version = "0.1.5"
+./dateparser/README.md:26:dateparser = "0.1.5"
+./dateparser/README.md:60:dateparser = "0.1.5"
+./belt/Cargo.toml:3:version = "0.1.5"
 ```
 
 Next, manually update verion numbers in those listed files or automatically bump the version with
 `make bump-verison`. When auto incrementing version with `make bump-version`, it will only bump the
-patch version, for example, 0.1.8 will become 0.1.9.
+patch version, for example, 0.1.5 will become 0.1.6.
 
 **NOTE**: you may need to run `cargo run` to update `belt` and `dateparser` versions in `Cargo.lock`
 file.
