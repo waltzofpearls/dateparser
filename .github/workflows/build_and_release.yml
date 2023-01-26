@@ -1,7 +1,7 @@
 on:
   push:
     tags:
-      - "v*.*.*" # push events to matching v*.*.*, i.e. v0.1.8, v20.15.10
+      - "v*.*.*" # push events to matching v*.*.*, i.e. v0.1.5, v20.15.10
 
 jobs:
   build-linux:

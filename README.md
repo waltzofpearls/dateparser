@@ -214,3 +214,34 @@ Date string in the following formats can be parsed by `belt`:
 // chinese yyyy mm dd
 "2014年04月08日",
 ```
+
+## How to make a new release
+
+List files that need to be updated with new version number:
+
+```shell
+make show-version-files
+```
+
+It will output something like this:
+
+```shell
+./dateparser/Cargo.toml:3:version = "0.1.8"
+./dateparser/README.md:26:dateparser = "0.1.8"
+./dateparser/README.md:60:dateparser = "0.1.8"
+./belt/Cargo.toml:3:version = "0.1.8"
+```
+
+Next, manually update verion numbers in those listed files or automatically bump the version with
+`make bump-verison`. When auto incrementing version with `make bump-version`, it will only bump the
+patch version, for example, 0.1.8 will become 0.1.9.
+
+**NOTE**: you may need to run `cargo run` to update `belt` and `dateparser` versions in `Cargo.lock`
+file.
+
+Once those files are updated, run the following command to tag a new version with git and push the
+new tag to GitHub. This will trigger a build and release workflow run in GitHub Actions:
+
+```shell
+make release
+```
