@@ -828,4 +828,98 @@ mod tests {
             };
         }
     }
+
+    #[test]
+    fn parse_with() {
+        // Two sets of tests - one for EDT and one for EST
+        // TODO: add eastern hemisphere set of timezones?
+
+        // Both will use these naive times
+        let midnight_naive = NaiveTime::from_hms_opt(0, 0, 0).unwrap();
+        let before_midnight_naive = NaiveTime::from_hms_opt(23, 59, 59).unwrap();
+
+        // EDT
+        // Eastern Daylight Time is from (as of 2023) 2nd Sun in Mar to 1st Sun in Nov
+        // It is UTC -4
+        let us_edt = &FixedOffset::west(4 * 3600);
+
+        let edt_test_cases = vec![
+            ("ymd", "2023-04-21"),
+            // ("ymd_z", "2023-04-21 EDT"), // not sure about this one
+            ("month_ymd", "2023-Apr-21"),
+            ("month_mdy", "April 21, 2023"),
+            ("month_dmy", "21 April 2023"),
+            ("slash_mdy", "04/21/23"),
+            ("slash_ymd", "2023/4/21"),
+            ("dot_mdy_or_ymd", "2023.04.21"),
+            // (
+            //     "chinese_ymd",
+            //     "2014年04月08日",
+            //     Utc.ymd(2014, 4, 8).and_time(Utc::now().time()).unwrap(),
+            // ),
+        ];
+
+        // test us_edt at midnight
+        let us_edt_midnight_as_utc = Utc.ymd(2023, 4, 21).and_hms(4, 0, 0);
+
+        for &(test, input) in edt_test_cases.iter() {
+            assert_eq!(
+                super::parse_with(input, us_edt, midnight_naive).unwrap(),
+                us_edt_midnight_as_utc,
+                "parse_with/{test}/{input}",
+            )
+        }
+
+        // test us_edt at 23:59:59 - UTC will be one day ahead
+        let us_edt_before_midnight_as_utc = Utc.ymd(2023, 4, 22).and_hms(03, 59, 59);
+        for &(test, input) in edt_test_cases.iter() {
+            assert_eq!(
+                super::parse_with(input, us_edt, before_midnight_naive).unwrap(),
+                us_edt_before_midnight_as_utc,
+                "parse_with/{test}/{input}",
+            )
+        }
+
+        // EST
+        // Eastern Standard Time is from (as of 2023) 1st Sun in Nov to 2nd Sun in Mar
+        // It is UTC -5
+        let us_est = &FixedOffset::west(5 * 3600);
+
+        let est_test_cases = vec![
+            ("ymd", "2023-12-21"),
+            // ("ymd_z", "2023-12-21 EST"), // not sure about this one
+            ("month_ymd", "2023-Dec-21"),
+            ("month_mdy", "December 21, 2023"),
+            ("month_dmy", "21 December 2023"),
+            ("slash_mdy", "12/21/23"),
+            ("slash_ymd", "2023/12/21"),
+            ("dot_mdy_or_ymd", "2023.12.21"),
+            // (
+            //     "chinese_ymd",
+            //     "2014年04月08日",
+            //     Utc.ymd(2014, 4, 8).and_time(Utc::now().time()).unwrap(),
+            // ),
+        ];
+
+        // test us_est at midnight
+        let us_est_midnight_as_utc = Utc.ymd(2023, 12, 21).and_hms(5, 0, 0);
+
+        for &(test, input) in est_test_cases.iter() {
+            assert_eq!(
+                super::parse_with(input, us_est, midnight_naive).unwrap(),
+                us_est_midnight_as_utc,
+                "parse_with/{test}/{input}",
+            )
+        }
+
+        // test us_est at 23:59:59 - UTC will be one day ahead
+        let us_est_before_midnight_as_utc = Utc.ymd(2023, 12, 22).and_hms(04, 59, 59);
+        for &(test, input) in est_test_cases.iter() {
+            assert_eq!(
+                super::parse_with(input, us_est, before_midnight_naive).unwrap(),
+                us_est_before_midnight_as_utc,
+                "parse_with/{test}/{input}",
+            )
+        }
+    }
 }
