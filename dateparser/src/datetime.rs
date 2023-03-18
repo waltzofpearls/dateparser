@@ -272,11 +272,7 @@ where
         let time = if let Some(v) = self.default_time {
             v
         } else {
-            Utc::now()
-                .date()
-                .and_time(Utc::now().time())?
-                .with_timezone(self.tz)
-                .time()
+            Utc::now().with_timezone(self.tz).time()
         };
 
         NaiveDate::parse_from_str(input, "%Y-%m-%d")
@@ -308,11 +304,7 @@ where
                         let time = if let Some(v) = self.default_time {
                             Utc::now().date().and_time(v)?.with_timezone(&offset).time()
                         } else {
-                            Utc::now()
-                                .date()
-                                .and_time(Utc::now().time())?
-                                .with_timezone(&offset)
-                                .time()
+                            Utc::now().with_timezone(&offset).time()
                         };
                         NaiveDate::parse_from_str(input, "%Y-%m-%d %Z")
                             .ok()
@@ -404,11 +396,7 @@ where
         let time = if let Some(v) = self.default_time {
             v
         } else {
-            Utc::now()
-                .date()
-                .and_time(Utc::now().time())?
-                .with_timezone(self.tz)
-                .time()
+            Utc::now().with_timezone(self.tz).time()
         };
 
         NaiveDate::parse_from_str(input, "%Y-%m-%d")
@@ -526,11 +514,7 @@ where
         let time = if let Some(v) = self.default_time {
             v
         } else {
-            Utc::now()
-                .date()
-                .and_time(Utc::now().time())?
-                .with_timezone(self.tz)
-                .time()
+            Utc::now().with_timezone(self.tz).time()
         };
 
         let dt = input.replace(", ", " ").replace(". ", " ");
@@ -587,11 +571,7 @@ where
         let time = if let Some(v) = self.default_time {
             v
         } else {
-            Utc::now()
-                .date()
-                .and_time(Utc::now().time())?
-                .with_timezone(self.tz)
-                .time()
+            Utc::now().with_timezone(self.tz).time()
         };
 
         NaiveDate::parse_from_str(input, "%d %B %y")
@@ -660,11 +640,7 @@ where
         let time = if let Some(v) = self.default_time {
             v
         } else {
-            Utc::now()
-                .date()
-                .and_time(Utc::now().time())?
-                .with_timezone(self.tz)
-                .time()
+            Utc::now().with_timezone(self.tz).time()
         };
 
         NaiveDate::parse_from_str(input, "%m/%d/%y")
@@ -720,11 +696,7 @@ where
         let time = if let Some(v) = self.default_time {
             v
         } else {
-            Utc::now()
-                .date()
-                .and_time(Utc::now().time())?
-                .with_timezone(self.tz)
-                .time()
+            Utc::now().with_timezone(self.tz).time()
         };
 
         NaiveDate::parse_from_str(input, "%Y/%m/%d")
@@ -754,11 +726,7 @@ where
         let time = if let Some(v) = self.default_time {
             v
         } else {
-            Utc::now()
-                .date()
-                .and_time(Utc::now().time())?
-                .with_timezone(self.tz)
-                .time()
+            Utc::now().with_timezone(self.tz).time()
         };
 
         NaiveDate::parse_from_str(input, "%m.%d.%y")
@@ -824,11 +792,7 @@ where
         let time = if let Some(v) = self.default_time {
             v
         } else {
-            Utc::now()
-                .date()
-                .and_time(Utc::now().time())?
-                .with_timezone(self.tz)
-                .time()
+            Utc::now().with_timezone(self.tz).time()
         };
 
         NaiveDate::parse_from_str(input, "%Y年%m月%d日")
