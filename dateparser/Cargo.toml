@@ -8,11 +8,11 @@ homepage = "https://github.com/waltzofpearls/belt/tree/main/dateparser"
 repository = "https://github.com/waltzofpearls/belt/tree/main/dateparser"
 keywords = ["date", "time", "datetime", "parser", "parse"]
 license = "MIT"
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 anyhow = "1.0.40"
-chrono = "0.4"
+chrono = "0.4.24"
 lazy_static = "1.4.0"
 regex = "1.6.0"
 
