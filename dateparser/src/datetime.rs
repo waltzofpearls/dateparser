@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 use crate::timezone;
 use anyhow::{anyhow, Result};
 use chrono::prelude::*;
@@ -7,7 +8,7 @@ use regex::Regex;
 /// Parse struct has methods implemented parsers for accepted formats.
 pub struct Parse<'z, Tz2> {
     tz: &'z Tz2,
-    default_time: NaiveTime,
+    default_time: Option<NaiveTime>,
 }
 
 impl<'z, Tz2> Parse<'z, Tz2>
@@ -16,7 +17,7 @@ where
 {
     /// Create a new instrance of [`Parse`] with a custom parsing timezone that handles the
     /// datetime string without time offset.
-    pub fn new(tz: &'z Tz2, default_time: NaiveTime) -> Self {
+    pub fn new(tz: &'z Tz2, default_time: Option<NaiveTime>) -> Self {
         Self { tz, default_time }
     }
 
@@ -266,13 +267,21 @@ where
         if !RE.is_match(input) {
             return None;
         }
-        let now = Utc::now()
-            .date()
-            .and_time(self.default_time)?
-            .with_timezone(self.tz);
+
+        // set time to use
+        let time = if let Some(v) = self.default_time {
+            v
+        } else {
+            Utc::now()
+                .date()
+                .and_time(Utc::now().time())?
+                .with_timezone(self.tz)
+                .time()
+        };
+
         NaiveDate::parse_from_str(input, "%Y-%m-%d")
             .ok()
-            .map(|parsed| parsed.and_time(now.time()))
+            .map(|parsed| parsed.and_time(time))
             .and_then(|datetime| self.tz.from_local_datetime(&datetime).single())
             .map(|at_tz| at_tz.with_timezone(&Utc))
             .map(Ok)
@@ -295,13 +304,19 @@ where
             if let Some(matched_tz) = caps.name("tz") {
                 return match timezone::parse(matched_tz.as_str().trim()) {
                     Ok(offset) => {
-                        let now = Utc::now()
-                            .date()
-                            .and_time(self.default_time)?
-                            .with_timezone(&offset);
+                        // set time to use
+                        let time = if let Some(v) = self.default_time {
+                            Utc::now().date().and_time(v)?.with_timezone(&offset).time()
+                        } else {
+                            Utc::now()
+                                .date()
+                                .and_time(Utc::now().time())?
+                                .with_timezone(&offset)
+                                .time()
+                        };
                         NaiveDate::parse_from_str(input, "%Y-%m-%d %Z")
                             .ok()
-                            .map(|parsed| parsed.and_time(now.time()))
+                            .map(|parsed| parsed.and_time(time))
                             .and_then(|datetime| offset.from_local_datetime(&datetime).single())
                             .map(|at_tz| at_tz.with_timezone(&Utc))
                             .map(Ok)
@@ -385,14 +400,21 @@ where
             return None;
         }
 
-        let now = Utc::now()
-            .date()
-            .and_time(self.default_time)?
-            .with_timezone(self.tz);
+        // set time to use
+        let time = if let Some(v) = self.default_time {
+            v
+        } else {
+            Utc::now()
+                .date()
+                .and_time(Utc::now().time())?
+                .with_timezone(self.tz)
+                .time()
+        };
+
         NaiveDate::parse_from_str(input, "%Y-%m-%d")
             .or_else(|_| NaiveDate::parse_from_str(input, "%Y-%b-%d"))
             .ok()
-            .map(|parsed| parsed.and_time(now.time()))
+            .map(|parsed| parsed.and_time(time))
             .and_then(|datetime| self.tz.from_local_datetime(&datetime).single())
             .map(|at_tz| at_tz.with_timezone(&Utc))
             .map(Ok)
@@ -500,15 +522,22 @@ where
             return None;
         }
 
-        let now = Utc::now()
-            .date()
-            .and_time(self.default_time)?
-            .with_timezone(self.tz);
+        // set time to use
+        let time = if let Some(v) = self.default_time {
+            v
+        } else {
+            Utc::now()
+                .date()
+                .and_time(Utc::now().time())?
+                .with_timezone(self.tz)
+                .time()
+        };
+
         let dt = input.replace(", ", " ").replace(". ", " ");
         NaiveDate::parse_from_str(&dt, "%B %d %y")
             .or_else(|_| NaiveDate::parse_from_str(&dt, "%B %d %Y"))
             .ok()
-            .map(|parsed| parsed.and_time(now.time()))
+            .map(|parsed| parsed.and_time(time))
             .and_then(|datetime| self.tz.from_local_datetime(&datetime).single())
             .map(|at_tz| at_tz.with_timezone(&Utc))
             .map(Ok)
@@ -554,14 +583,21 @@ where
             return None;
         }
 
-        let now = Utc::now()
-            .date()
-            .and_time(self.default_time)?
-            .with_timezone(self.tz);
+        // set time to use
+        let time = if let Some(v) = self.default_time {
+            v
+        } else {
+            Utc::now()
+                .date()
+                .and_time(Utc::now().time())?
+                .with_timezone(self.tz)
+                .time()
+        };
+
         NaiveDate::parse_from_str(input, "%d %B %y")
             .or_else(|_| NaiveDate::parse_from_str(input, "%d %B %Y"))
             .ok()
-            .map(|parsed| parsed.and_time(now.time()))
+            .map(|parsed| parsed.and_time(time))
             .and_then(|datetime| self.tz.from_local_datetime(&datetime).single())
             .map(|at_tz| at_tz.with_timezone(&Utc))
             .map(Ok)
@@ -620,14 +656,21 @@ where
             return None;
         }
 
-        let now = Utc::now()
-            .date()
-            .and_time(self.default_time)?
-            .with_timezone(self.tz);
+        // set time to use
+        let time = if let Some(v) = self.default_time {
+            v
+        } else {
+            Utc::now()
+                .date()
+                .and_time(Utc::now().time())?
+                .with_timezone(self.tz)
+                .time()
+        };
+
         NaiveDate::parse_from_str(input, "%m/%d/%y")
             .or_else(|_| NaiveDate::parse_from_str(input, "%m/%d/%Y"))
             .ok()
-            .map(|parsed| parsed.and_time(now.time()))
+            .map(|parsed| parsed.and_time(time))
             .and_then(|datetime| self.tz.from_local_datetime(&datetime).single())
             .map(|at_tz| at_tz.with_timezone(&Utc))
             .map(Ok)
@@ -673,13 +716,20 @@ where
             return None;
         }
 
-        let now = Utc::now()
-            .date()
-            .and_time(self.default_time)?
-            .with_timezone(self.tz);
+        // set time to use
+        let time = if let Some(v) = self.default_time {
+            v
+        } else {
+            Utc::now()
+                .date()
+                .and_time(Utc::now().time())?
+                .with_timezone(self.tz)
+                .time()
+        };
+
         NaiveDate::parse_from_str(input, "%Y/%m/%d")
             .ok()
-            .map(|parsed| parsed.and_time(now.time()))
+            .map(|parsed| parsed.and_time(time))
             .and_then(|datetime| self.tz.from_local_datetime(&datetime).single())
             .map(|at_tz| at_tz.with_timezone(&Utc))
             .map(Ok)
@@ -700,16 +750,25 @@ where
             return None;
         }
 
-        let now = Utc::now()
-            .date()
-            .and_time(self.default_time)?
-            .with_timezone(self.tz);
+        // set time to use
+        let time = if let Some(v) = self.default_time {
+            v
+        } else {
+            Utc::now()
+                .date()
+                .and_time(Utc::now().time())?
+                .with_timezone(self.tz)
+                .time()
+        };
+
         NaiveDate::parse_from_str(input, "%m.%d.%y")
             .or_else(|_| NaiveDate::parse_from_str(input, "%m.%d.%Y"))
             .or_else(|_| NaiveDate::parse_from_str(input, "%Y.%m.%d"))
-            .or_else(|_| NaiveDate::parse_from_str(&format!("{}.{}", input, now.day()), "%Y.%m.%d"))
+            .or_else(|_| {
+                NaiveDate::parse_from_str(&format!("{}.{}", input, Utc::now().day()), "%Y.%m.%d")
+            })
             .ok()
-            .map(|parsed| parsed.and_time(now.time()))
+            .map(|parsed| parsed.and_time(time))
             .and_then(|datetime| self.tz.from_local_datetime(&datetime).single())
             .map(|at_tz| at_tz.with_timezone(&Utc))
             .map(Ok)
@@ -761,13 +820,20 @@ where
             return None;
         }
 
-        let now = Utc::now()
-            .date()
-            .and_time(self.default_time)?
-            .with_timezone(self.tz);
+        // set time to use
+        let time = if let Some(v) = self.default_time {
+            v
+        } else {
+            Utc::now()
+                .date()
+                .and_time(Utc::now().time())?
+                .with_timezone(self.tz)
+                .time()
+        };
+
         NaiveDate::parse_from_str(input, "%Y年%m月%d日")
             .ok()
-            .map(|parsed| parsed.and_time(now.time()))
+            .map(|parsed| parsed.and_time(time))
             .and_then(|datetime| self.tz.from_local_datetime(&datetime).single())
             .map(|at_tz| at_tz.with_timezone(&Utc))
             .map(Ok)
@@ -780,7 +846,7 @@ mod tests {
 
     #[test]
     fn unix_timestamp() {
-        let parse = Parse::new(&Utc, Utc::now().time());
+        let parse = Parse::new(&Utc, None);
 
         let test_cases = vec![
             ("0000000000", Utc.ymd(1970, 1, 1).and_hms(0, 0, 0)),
@@ -814,7 +880,7 @@ mod tests {
 
     #[test]
     fn rfc3339() {
-        let parse = Parse::new(&Utc, Utc::now().time());
+        let parse = Parse::new(&Utc, None);
 
         let test_cases = vec![
             (
@@ -841,7 +907,7 @@ mod tests {
 
     #[test]
     fn rfc2822() {
-        let parse = Parse::new(&Utc, Utc::now().time());
+        let parse = Parse::new(&Utc, None);
 
         let test_cases = vec![
             (
@@ -868,7 +934,7 @@ mod tests {
 
     #[test]
     fn postgres_timestamp() {
-        let parse = Parse::new(&Utc, Utc::now().time());
+        let parse = Parse::new(&Utc, None);
 
         let test_cases = vec![
             (
@@ -910,7 +976,7 @@ mod tests {
 
     #[test]
     fn ymd_hms() {
-        let parse = Parse::new(&Utc, Utc::now().time());
+        let parse = Parse::new(&Utc, None);
 
         let test_cases = vec![
             ("2021-04-30 21:14", Utc.ymd(2021, 4, 30).and_hms(21, 14, 0)),
@@ -953,7 +1019,7 @@ mod tests {
 
     #[test]
     fn ymd_hms_z() {
-        let parse = Parse::new(&Utc, Utc::now().time());
+        let parse = Parse::new(&Utc, None);
 
         let test_cases = vec![
             (
@@ -1003,7 +1069,7 @@ mod tests {
 
     #[test]
     fn ymd() {
-        let parse = Parse::new(&Utc, Utc::now().time());
+        let parse = Parse::new(&Utc, Some(Utc::now().time()));
 
         let test_cases = vec![(
             "2021-02-21",
@@ -1029,7 +1095,7 @@ mod tests {
 
     #[test]
     fn ymd_z() {
-        let parse = Parse::new(&Utc, Utc::now().time());
+        let parse = Parse::new(&Utc, Some(Utc::now().time()));
         let now_at_pst = Utc::now().with_timezone(&FixedOffset::west(8 * 3600));
         let now_at_cst = Utc::now().with_timezone(&FixedOffset::east(8 * 3600));
 
@@ -1076,7 +1142,7 @@ mod tests {
 
     #[test]
     fn hms() {
-        let parse = Parse::new(&Utc, Utc::now().time());
+        let parse = Parse::new(&Utc, None);
 
         let test_cases = vec![
             (
@@ -1106,7 +1172,7 @@ mod tests {
 
     #[test]
     fn hms_z() {
-        let parse = Parse::new(&Utc, Utc::now().time());
+        let parse = Parse::new(&Utc, None);
         let now_at_pst = Utc::now().with_timezone(&FixedOffset::west(8 * 3600));
 
         let test_cases = vec![
@@ -1153,7 +1219,7 @@ mod tests {
 
     #[test]
     fn month_ymd() {
-        let parse = Parse::new(&Utc, Utc::now().time());
+        let parse = Parse::new(&Utc, None);
 
         let test_cases = vec![(
             "2021-Feb-21",
@@ -1179,7 +1245,7 @@ mod tests {
 
     #[test]
     fn month_md_hms() {
-        let parse = Parse::new(&Utc, Utc::now().time());
+        let parse = Parse::new(&Utc, None);
 
         let test_cases = vec![
             (
@@ -1205,7 +1271,7 @@ mod tests {
 
     #[test]
     fn month_mdy_hms() {
-        let parse = Parse::new(&Utc, Utc::now().time());
+        let parse = Parse::new(&Utc, None);
 
         let test_cases = vec![
             (
@@ -1235,7 +1301,7 @@ mod tests {
 
     #[test]
     fn month_mdy_hms_z() {
-        let parse = Parse::new(&Utc, Utc::now().time());
+        let parse = Parse::new(&Utc, None);
 
         let test_cases = vec![
             (
@@ -1269,7 +1335,7 @@ mod tests {
 
     #[test]
     fn month_mdy() {
-        let parse = Parse::new(&Utc, Utc::now().time());
+        let parse = Parse::new(&Utc, None);
 
         let test_cases = vec![
             (
@@ -1317,7 +1383,7 @@ mod tests {
 
     #[test]
     fn month_dmy_hms() {
-        let parse = Parse::new(&Utc, Utc::now().time());
+        let parse = Parse::new(&Utc, None);
 
         let test_cases = vec![
             (
@@ -1344,7 +1410,7 @@ mod tests {
 
     #[test]
     fn month_dmy() {
-        let parse = Parse::new(&Utc, Utc::now().time());
+        let parse = Parse::new(&Utc, None);
 
         let test_cases = vec![
             ("7 oct 70", Utc.ymd(1970, 10, 7).and_time(Utc::now().time())),
@@ -1381,7 +1447,7 @@ mod tests {
 
     #[test]
     fn slash_mdy_hms() {
-        let parse = Parse::new(&Utc, Utc::now().time());
+        let parse = Parse::new(&Utc, None);
 
         let test_cases = vec![
             ("4/8/2014 22:05", Utc.ymd(2014, 4, 8).and_hms(22, 5, 0)),
@@ -1420,7 +1486,7 @@ mod tests {
 
     #[test]
     fn slash_mdy() {
-        let parse = Parse::new(&Utc, Utc::now().time());
+        let parse = Parse::new(&Utc, None);
 
         let test_cases = vec![
             (
@@ -1454,7 +1520,7 @@ mod tests {
 
     #[test]
     fn slash_ymd_hms() {
-        let parse = Parse::new(&Utc, Utc::now().time());
+        let parse = Parse::new(&Utc, None);
 
         let test_cases = vec![
             ("2014/4/8 22:05", Utc.ymd(2014, 4, 8).and_hms(22, 5, 0)),
@@ -1484,7 +1550,7 @@ mod tests {
 
     #[test]
     fn slash_ymd() {
-        let parse = Parse::new(&Utc, Utc::now().time());
+        let parse = Parse::new(&Utc, Some(Utc::now().time()));
 
         let test_cases = vec![
             (
@@ -1516,7 +1582,7 @@ mod tests {
 
     #[test]
     fn dot_mdy_or_ymd() {
-        let parse = Parse::new(&Utc, Utc::now().time());
+        let parse = Parse::new(&Utc, Some(Utc::now().time()));
 
         let test_cases = vec![
             // mm.dd.yyyy
@@ -1560,7 +1626,7 @@ mod tests {
 
     #[test]
     fn mysql_log_timestamp() {
-        let parse = Parse::new(&Utc, Utc::now().time());
+        let parse = Parse::new(&Utc, None);
 
         let test_cases = vec![
             // yymmdd hh:mm:ss mysql log
@@ -1580,7 +1646,7 @@ mod tests {
 
     #[test]
     fn chinese_ymd_hms() {
-        let parse = Parse::new(&Utc, Utc::now().time());
+        let parse = Parse::new(&Utc, None);
 
         let test_cases = vec![(
             "2014年04月08日11时25分18秒",
@@ -1600,7 +1666,7 @@ mod tests {
 
     #[test]
     fn chinese_ymd() {
-        let parse = Parse::new(&Utc, Utc::now().time());
+        let parse = Parse::new(&Utc, Some(Utc::now().time()));
 
         let test_cases = vec![(
             "2014年04月08日",

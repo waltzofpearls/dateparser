@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 //! A rust library for parsing date strings in commonly used formats. Parsed date will be returned
 //! as `chrono`'s `DateTime<Utc>`.
 //!
@@ -194,14 +195,13 @@
 /// use std::error::Error;
 ///
 /// fn main() -> Result<(), Box<dyn Error>> {
-///     let utc_now_time = Utc::now().time();
-///     let parse_with_local = Parse::new(&Local, utc_now_time);
+///     let parse_with_local = Parse::new(&Local, None);
 ///     assert_eq!(
 ///         parse_with_local.parse("2021-06-05 06:19 PM")?,
 ///         Local.ymd(2021, 6, 5).and_hms(18, 19, 0).with_timezone(&Utc),
 ///     );
 ///
-///     let parse_with_utc = Parse::new(&Utc, utc_now_time);
+///     let parse_with_utc = Parse::new(&Utc, None);
 ///     assert_eq!(
 ///         parse_with_utc.parse("2021-06-05 06:19 PM")?,
 ///         Utc.ymd(2021, 6, 5).and_hms(18, 19, 0),
@@ -283,7 +283,7 @@ impl std::str::FromStr for DateTimeUtc {
 /// );
 /// ```
 pub fn parse(input: &str) -> Result<DateTime<Utc>> {
-    Parse::new(&Local, Utc::now().time()).parse(input)
+    Parse::new(&Local, None).parse(input)
 }
 
 /// Similar to [`parse()`], this function takes a datetime string and a custom [`chrono::TimeZone`],
@@ -314,7 +314,7 @@ pub fn parse(input: &str) -> Result<DateTime<Utc>> {
 /// );
 /// ```
 pub fn parse_with_timezone<Tz2: TimeZone>(input: &str, tz: &Tz2) -> Result<DateTime<Utc>> {
-    Parse::new(tz, Utc::now().time()).parse(input)
+    Parse::new(tz, None).parse(input)
 }
 
 /// Similar to [`parse()`] and [`parse_with_timezone()`], this function takes a datetime string, a
@@ -326,34 +326,41 @@ pub fn parse_with_timezone<Tz2: TimeZone>(input: &str, tz: &Tz2) -> Result<DateT
 /// use dateparser::parse_with;
 /// use chrono::prelude::*;
 ///
-/// let utc_now_time = Utc::now().time();
-/// let local_now_time = Local::now().time();
-/// let midnight = NaiveTime::from_hms(0, 0, 0);
+/// let utc_now = Utc::now().time().trunc_subsecs(0);
+/// let local_now = Local::now().time().trunc_subsecs(0);
+/// let midnight_naive = NaiveTime::from_hms_opt(0, 0, 0).unwrap();
+/// let before_midnight_naive = NaiveTime::from_hms_opt(23, 59, 59).unwrap();
 ///
-/// let parsed_in_local_with_utc_now_time = parse_with("2021-10-09", &Local, utc_now_time);
-/// let parsed_in_local_with_utc_midnight = parse_with("2021-10-09", &Local, midnight);
-/// let parsed_in_utc_with_utc_now_time = parse_with("2021-10-09", &Utc, utc_now_time);
-/// let parsed_in_utc_with_utc_midnight = parse_with("2021-10-09", &Utc, midnight);
+/// let parsed_with_local_now = parse_with("2021-10-09", &Local, local_now);
+/// let parsed_with_local_midnight = parse_with("2021-10-09", &Local, midnight_naive);
+/// let parsed_with_local_before_midnight = parse_with("2021-10-09", &Local, before_midnight_naive);
+/// let parsed_with_utc_now = parse_with("2021-10-09", &Utc, utc_now);
+/// let parsed_with_utc_midnight = parse_with("2021-10-09", &Utc, midnight_naive);
 ///
 /// assert_eq!(
-///     parsed_in_local_with_utc_now_time.unwrap().trunc_subsecs(0),
-///     Local.ymd(2021, 10, 9).and_time(local_now_time).unwrap().with_timezone(&Utc).trunc_subsecs(0),
-///     "parsed_in_local_with_utc_now_time"
+///     parsed_with_local_now.unwrap(),
+///     Local.ymd(2021, 10, 9).and_time(local_now).unwrap().with_timezone(&Utc),
+///     "parsed_with_local_now"
 /// );
 /// assert_eq!(
-///     parsed_in_local_with_utc_midnight.unwrap().trunc_subsecs(0),
-///     Local.ymd(2021, 10, 9).and_time(local_now_time).unwrap().with_timezone(&Utc).date().and_hms(0, 0, 0),
-///     "parsed_in_local_with_utc_midnight"
+///     parsed_with_local_midnight.unwrap(),
+///     Local.ymd(2021, 10, 9).and_time(midnight_naive).unwrap().with_timezone(&Utc),
+///     "parsed_with_local_midnight"
 /// );
 /// assert_eq!(
-///     parsed_in_utc_with_utc_now_time.unwrap(),
-///     Utc.ymd(2021, 10, 9).and_time(utc_now_time).unwrap(),
-///     "parsed_in_utc_with_utc_now_time"
+///     parsed_with_local_before_midnight.unwrap(),
+///     Local.ymd(2021, 10, 9).and_time(before_midnight_naive).unwrap().with_timezone(&Utc),
+///     "parsed_with_local_before_midnight"
 /// );
 /// assert_eq!(
-///     parsed_in_utc_with_utc_midnight.unwrap().trunc_subsecs(0),
+///     parsed_with_utc_now.unwrap(),
+///     Utc.ymd(2021, 10, 9).and_time(utc_now).unwrap(),
+///     "parsed_with_utc_now"
+/// );
+/// assert_eq!(
+///     parsed_with_utc_midnight.unwrap(),
 ///     Utc.ymd(2021, 10, 9).and_hms(0, 0, 0),
-///     "parsed_in_utc_with_utc_midnight"
+///     "parsed_with_utc_midnight"
 /// );
 /// ```
 pub fn parse_with<Tz2: TimeZone>(
@@ -361,7 +368,7 @@ pub fn parse_with<Tz2: TimeZone>(
     tz: &Tz2,
     default_time: NaiveTime,
 ) -> Result<DateTime<Utc>> {
-    Parse::new(tz, default_time).parse(input)
+    Parse::new(tz, Some(default_time)).parse(input)
 }
 
 #[cfg(test)]
@@ -829,23 +836,20 @@ mod tests {
         }
     }
 
-    #[test]
-    fn parse_with() {
-        // Two sets of tests - one for EDT and one for EST
-        // TODO: add eastern hemisphere set of timezones?
+    // test parse_with() with various timezones and times
 
-        // Both will use these naive times
+    #[test]
+    fn parse_with_edt() {
+        // Eastern Daylight Time (EDT) is from (as of 2023) 2nd Sun in Mar to 1st Sun in Nov
+        // It is UTC -4
+
         let midnight_naive = NaiveTime::from_hms_opt(0, 0, 0).unwrap();
         let before_midnight_naive = NaiveTime::from_hms_opt(23, 59, 59).unwrap();
-
-        // EDT
-        // Eastern Daylight Time is from (as of 2023) 2nd Sun in Mar to 1st Sun in Nov
-        // It is UTC -4
-        let us_edt = &FixedOffset::west(4 * 3600);
+        let us_edt = &FixedOffset::west_opt(4 * 3600).unwrap();
 
         let edt_test_cases = vec![
             ("ymd", "2023-04-21"),
-            // ("ymd_z", "2023-04-21 EDT"), // not sure about this one
+            // ("ymd_z", "2023-04-21 EDT"), // FIXME not sure about this one
             ("month_ymd", "2023-Apr-21"),
             ("month_mdy", "April 21, 2023"),
             ("month_dmy", "21 April 2023"),
@@ -879,15 +883,20 @@ mod tests {
                 "parse_with/{test}/{input}",
             )
         }
+    }
 
-        // EST
-        // Eastern Standard Time is from (as of 2023) 1st Sun in Nov to 2nd Sun in Mar
+    #[test]
+    fn parse_with_est() {
+        // Eastern Standard Time (EST) is from (as of 2023) 1st Sun in Nov to 2nd Sun in Mar
         // It is UTC -5
+
+        let midnight_naive = NaiveTime::from_hms_opt(0, 0, 0).unwrap();
+        let before_midnight_naive = NaiveTime::from_hms_opt(23, 59, 59).unwrap();
         let us_est = &FixedOffset::west(5 * 3600);
 
         let est_test_cases = vec![
             ("ymd", "2023-12-21"),
-            // ("ymd_z", "2023-12-21 EST"), // not sure about this one
+            // ("ymd_z", "2023-12-21 EST"), // FIXME not sure about this one
             ("month_ymd", "2023-Dec-21"),
             ("month_mdy", "December 21, 2023"),
             ("month_dmy", "21 December 2023"),
@@ -918,6 +927,94 @@ mod tests {
             assert_eq!(
                 super::parse_with(input, us_est, before_midnight_naive).unwrap(),
                 us_est_before_midnight_as_utc,
+                "parse_with/{test}/{input}",
+            )
+        }
+    }
+
+    #[test]
+    fn parse_with_utc() {
+        let midnight_naive = NaiveTime::from_hms_opt(0, 0, 0).unwrap();
+        let before_midnight_naive = NaiveTime::from_hms_opt(23, 59, 59).unwrap();
+        let utc_test_cases = vec![
+            ("ymd", "2023-12-21"),
+            // ("ymd_z", "2023-12-21 EST"), // FIXME not sure about this one
+            ("month_ymd", "2023-Dec-21"),
+            ("month_mdy", "December 21, 2023"),
+            ("month_dmy", "21 December 2023"),
+            ("slash_mdy", "12/21/23"),
+            ("slash_ymd", "2023/12/21"),
+            ("dot_mdy_or_ymd", "2023.12.21"),
+            // (
+            //     "chinese_ymd",
+            //     "2014年04月08日",
+            //     Utc.ymd(2014, 4, 8).and_time(Utc::now().time()).unwrap(),
+            // ),
+        ];
+
+        // test utc at midnight
+        let utc_midnight = Utc.ymd(2023, 12, 21).and_hms(0, 0, 0);
+
+        for &(test, input) in utc_test_cases.iter() {
+            assert_eq!(
+                super::parse_with(input, &Utc, midnight_naive).unwrap(),
+                utc_midnight,
+                "parse_with/{test}/{input}",
+            )
+        }
+
+        // test utc at 23:59:59
+        let utc_before_midnight = Utc.ymd(2023, 12, 21).and_hms(23, 59, 59);
+        for &(test, input) in utc_test_cases.iter() {
+            assert_eq!(
+                super::parse_with(input, &Utc, before_midnight_naive).unwrap(),
+                utc_before_midnight,
+                "parse_with/{test}/{input}",
+            )
+        }
+    }
+
+    #[test]
+    fn parse_with_local() {
+        let midnight_naive = NaiveTime::from_hms_opt(0, 0, 0).unwrap();
+        let before_midnight_naive = NaiveTime::from_hms_opt(23, 59, 59).unwrap();
+        let local_test_cases = vec![
+            ("ymd", "2023-12-21"),
+            // ("ymd_z", "2023-12-21 EST"), // FIXME not sure about this one
+            ("month_ymd", "2023-Dec-21"),
+            ("month_mdy", "December 21, 2023"),
+            ("month_dmy", "21 December 2023"),
+            ("slash_mdy", "12/21/23"),
+            ("slash_ymd", "2023/12/21"),
+            ("dot_mdy_or_ymd", "2023.12.21"),
+            // (
+            //     "chinese_ymd",
+            //     "2014年04月08日",
+            //     Utc.ymd(2014, 4, 8).and_time(Utc::now().time()).unwrap(),
+            // ),
+        ];
+
+        // test local at midnight
+        let local_midnight_as_utc = Local.ymd(2023, 12, 21).and_hms(0, 0, 0).with_timezone(&Utc);
+
+        for &(test, input) in local_test_cases.iter() {
+            assert_eq!(
+                super::parse_with(input, &Local, midnight_naive).unwrap(),
+                local_midnight_as_utc,
+                "parse_with/{test}/{input}",
+            )
+        }
+
+        // test local at 23:59:59
+        let local_before_midnight_as_utc = Local
+            .ymd(2023, 12, 21)
+            .and_hms(23, 59, 59)
+            .with_timezone(&Utc);
+
+        for &(test, input) in local_test_cases.iter() {
+            assert_eq!(
+                super::parse_with(input, &Local, before_midnight_naive).unwrap(),
+                local_before_midnight_as_utc,
                 "parse_with/{test}/{input}",
             )
         }
