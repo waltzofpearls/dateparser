@@ -849,18 +849,14 @@ mod tests {
 
         let edt_test_cases = vec![
             ("ymd", "2023-04-21"),
-            // ("ymd_z", "2023-04-21 EDT"), // FIXME not sure about this one
+            ("ymd_z", "2023-04-21 EDT"),
             ("month_ymd", "2023-Apr-21"),
             ("month_mdy", "April 21, 2023"),
             ("month_dmy", "21 April 2023"),
             ("slash_mdy", "04/21/23"),
             ("slash_ymd", "2023/4/21"),
             ("dot_mdy_or_ymd", "2023.04.21"),
-            // (
-            //     "chinese_ymd",
-            //     "2014年04月08日",
-            //     Utc.ymd(2014, 4, 8).and_time(Utc::now().time()).unwrap(),
-            // ),
+            ("chinese_ymd", "2023年04月21日"),
         ];
 
         // test us_edt at midnight
@@ -896,18 +892,14 @@ mod tests {
 
         let est_test_cases = vec![
             ("ymd", "2023-12-21"),
-            // ("ymd_z", "2023-12-21 EST"), // FIXME not sure about this one
+            ("ymd_z", "2023-12-21 EST"),
             ("month_ymd", "2023-Dec-21"),
             ("month_mdy", "December 21, 2023"),
             ("month_dmy", "21 December 2023"),
             ("slash_mdy", "12/21/23"),
             ("slash_ymd", "2023/12/21"),
             ("dot_mdy_or_ymd", "2023.12.21"),
-            // (
-            //     "chinese_ymd",
-            //     "2014年04月08日",
-            //     Utc.ymd(2014, 4, 8).and_time(Utc::now().time()).unwrap(),
-            // ),
+            ("chinese_ymd", "2023年12月21日"),
         ];
 
         // test us_est at midnight
@@ -938,20 +930,15 @@ mod tests {
         let before_midnight_naive = NaiveTime::from_hms_opt(23, 59, 59).unwrap();
         let utc_test_cases = vec![
             ("ymd", "2023-12-21"),
-            // ("ymd_z", "2023-12-21 EST"), // FIXME not sure about this one
+            ("ymd_z", "2023-12-21 UTC"),
             ("month_ymd", "2023-Dec-21"),
             ("month_mdy", "December 21, 2023"),
             ("month_dmy", "21 December 2023"),
             ("slash_mdy", "12/21/23"),
             ("slash_ymd", "2023/12/21"),
             ("dot_mdy_or_ymd", "2023.12.21"),
-            // (
-            //     "chinese_ymd",
-            //     "2014年04月08日",
-            //     Utc.ymd(2014, 4, 8).and_time(Utc::now().time()).unwrap(),
-            // ),
+            ("chinese_ymd", "2023年12月21日"),
         ];
-
         // test utc at midnight
         let utc_midnight = Utc.ymd(2023, 12, 21).and_hms(0, 0, 0);
 
@@ -980,18 +967,13 @@ mod tests {
         let before_midnight_naive = NaiveTime::from_hms_opt(23, 59, 59).unwrap();
         let local_test_cases = vec![
             ("ymd", "2023-12-21"),
-            // ("ymd_z", "2023-12-21 EST"), // FIXME not sure about this one
             ("month_ymd", "2023-Dec-21"),
             ("month_mdy", "December 21, 2023"),
             ("month_dmy", "21 December 2023"),
             ("slash_mdy", "12/21/23"),
             ("slash_ymd", "2023/12/21"),
             ("dot_mdy_or_ymd", "2023.12.21"),
-            // (
-            //     "chinese_ymd",
-            //     "2014年04月08日",
-            //     Utc.ymd(2014, 4, 8).and_time(Utc::now().time()).unwrap(),
-            // ),
+            ("chinese_ymd", "2023年12月21日"),
         ];
 
         // test local at midnight

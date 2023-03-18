@@ -302,7 +302,7 @@ where
                     Ok(offset) => {
                         // set time to use
                         let time = if let Some(v) = self.default_time {
-                            Utc::now().date().and_time(v)?.with_timezone(&offset).time()
+                            v
                         } else {
                             Utc::now().with_timezone(&offset).time()
                         };
@@ -1059,7 +1059,7 @@ mod tests {
 
     #[test]
     fn ymd_z() {
-        let parse = Parse::new(&Utc, Some(Utc::now().time()));
+        let parse = Parse::new(&Utc, None);
         let now_at_pst = Utc::now().with_timezone(&FixedOffset::west(8 * 3600));
         let now_at_cst = Utc::now().with_timezone(&FixedOffset::east(8 * 3600));
 
