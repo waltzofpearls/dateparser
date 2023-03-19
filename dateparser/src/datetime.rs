@@ -269,10 +269,9 @@ where
         }
 
         // set time to use
-        let time = if let Some(v) = self.default_time {
-            v
-        } else {
-            Utc::now().with_timezone(self.tz).time()
+        let time = match self.default_time {
+            Some(v) => v,
+            None => Utc::now().with_timezone(self.tz).time(),
         };
 
         NaiveDate::parse_from_str(input, "%Y-%m-%d")
@@ -301,10 +300,9 @@ where
                 return match timezone::parse(matched_tz.as_str().trim()) {
                     Ok(offset) => {
                         // set time to use
-                        let time = if let Some(v) = self.default_time {
-                            v
-                        } else {
-                            Utc::now().with_timezone(&offset).time()
+                        let time = match self.default_time {
+                            Some(v) => v,
+                            None => Utc::now().with_timezone(&offset).time(),
                         };
                         NaiveDate::parse_from_str(input, "%Y-%m-%d %Z")
                             .ok()
@@ -393,10 +391,9 @@ where
         }
 
         // set time to use
-        let time = if let Some(v) = self.default_time {
-            v
-        } else {
-            Utc::now().with_timezone(self.tz).time()
+        let time = match self.default_time {
+            Some(v) => v,
+            None => Utc::now().with_timezone(self.tz).time(),
         };
 
         NaiveDate::parse_from_str(input, "%Y-%m-%d")
@@ -511,10 +508,9 @@ where
         }
 
         // set time to use
-        let time = if let Some(v) = self.default_time {
-            v
-        } else {
-            Utc::now().with_timezone(self.tz).time()
+        let time = match self.default_time {
+            Some(v) => v,
+            None => Utc::now().with_timezone(self.tz).time(),
         };
 
         let dt = input.replace(", ", " ").replace(". ", " ");
@@ -568,10 +564,9 @@ where
         }
 
         // set time to use
-        let time = if let Some(v) = self.default_time {
-            v
-        } else {
-            Utc::now().with_timezone(self.tz).time()
+        let time = match self.default_time {
+            Some(v) => v,
+            None => Utc::now().with_timezone(self.tz).time(),
         };
 
         NaiveDate::parse_from_str(input, "%d %B %y")
@@ -637,10 +632,9 @@ where
         }
 
         // set time to use
-        let time = if let Some(v) = self.default_time {
-            v
-        } else {
-            Utc::now().with_timezone(self.tz).time()
+        let time = match self.default_time {
+            Some(v) => v,
+            None => Utc::now().with_timezone(self.tz).time(),
         };
 
         NaiveDate::parse_from_str(input, "%m/%d/%y")
@@ -693,10 +687,9 @@ where
         }
 
         // set time to use
-        let time = if let Some(v) = self.default_time {
-            v
-        } else {
-            Utc::now().with_timezone(self.tz).time()
+        let time = match self.default_time {
+            Some(v) => v,
+            None => Utc::now().with_timezone(self.tz).time(),
         };
 
         NaiveDate::parse_from_str(input, "%Y/%m/%d")
@@ -723,10 +716,9 @@ where
         }
 
         // set time to use
-        let time = if let Some(v) = self.default_time {
-            v
-        } else {
-            Utc::now().with_timezone(self.tz).time()
+        let time = match self.default_time {
+            Some(v) => v,
+            None => Utc::now().with_timezone(self.tz).time(),
         };
 
         NaiveDate::parse_from_str(input, "%m.%d.%y")
@@ -789,10 +781,9 @@ where
         }
 
         // set time to use
-        let time = if let Some(v) = self.default_time {
-            v
-        } else {
-            Utc::now().with_timezone(self.tz).time()
+        let time = match self.default_time {
+            Some(v) => v,
+            None => Utc::now().with_timezone(self.tz).time(),
         };
 
         NaiveDate::parse_from_str(input, "%Y年%m月%d日")
