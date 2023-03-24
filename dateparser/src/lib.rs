@@ -871,7 +871,7 @@ mod tests {
         }
 
         // test us_edt at 23:59:59 - UTC will be one day ahead
-        let us_edt_before_midnight_as_utc = Utc.ymd(2023, 4, 22).and_hms(03, 59, 59);
+        let us_edt_before_midnight_as_utc = Utc.ymd(2023, 4, 22).and_hms(3, 59, 59);
         for &(test, input) in edt_test_cases.iter() {
             assert_eq!(
                 super::parse_with(input, us_edt, before_midnight_naive).unwrap(),
@@ -914,7 +914,7 @@ mod tests {
         }
 
         // test us_est at 23:59:59 - UTC will be one day ahead
-        let us_est_before_midnight_as_utc = Utc.ymd(2023, 12, 22).and_hms(04, 59, 59);
+        let us_est_before_midnight_as_utc = Utc.ymd(2023, 12, 22).and_hms(4, 59, 59);
         for &(test, input) in est_test_cases.iter() {
             assert_eq!(
                 super::parse_with(input, us_est, before_midnight_naive).unwrap(),
