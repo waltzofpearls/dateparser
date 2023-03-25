@@ -20,7 +20,7 @@ fn parse_offset_2822(s: &str) -> Result<i32> {
     let upto = s
         .as_bytes()
         .iter()
-        .position(|&c| !matches!(c, b'a'..=b'z' | b'A'..=b'Z'))
+        .position(|&c| !c.is_ascii_alphabetic())
         .unwrap_or(s.len());
     if upto > 0 {
         let name = &s[..upto];
