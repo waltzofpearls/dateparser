@@ -7,7 +7,7 @@ use chrono::prelude::*;
 use chrono_tz::Tz;
 use colored::*;
 use dateparser::DateTimeUtc;
-use prettytable::{cell, row, Table};
+use prettytable::{row, Table};
 use std::io;
 
 pub struct App<'a, T> {
