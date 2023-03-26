@@ -1,41 +1,41 @@
-use clap::Clap;
+use clap::{Parser, Subcommand};
 
-#[derive(Clap, Debug)]
-#[clap(author, about, version)]
+#[derive(Parser, Debug)]
+#[command(author, about, version)]
 pub struct Opts {
-    #[clap(name = "TIME")]
+    #[arg(name = "TIME")]
     pub time: Option<String>,
     /// Provide a terse answer, and default to a verbose form
-    #[clap(short, long)]
+    #[arg(short, long)]
     pub short: bool,
 
     /// Name of the config
-    #[clap(short, long, name = "NAME", default_value = "belt")]
+    #[arg(short, long, name = "NAME", default_value = "belt")]
     pub app: String,
 
-    #[clap(subcommand)]
+    #[command(subcommand)]
     pub subcommands: Option<Subcommands>,
 }
 
-#[derive(Clap, Debug)]
+#[derive(Subcommand, Debug)]
 pub enum Subcommands {
     /// Configure time zones list
     Config(OptsConfig),
 }
 
-#[derive(Clap, Debug)]
+#[derive(Parser, Debug)]
 pub struct OptsConfig {
     /// List existing time zones
-    #[clap(short, long)]
+    #[arg(short, long)]
     pub list: bool,
     /// Reset to default list of time zones
-    #[clap(short, long)]
+    #[arg(short, long)]
     pub reset: bool,
     /// Add a new time zone to the list
-    #[clap(short, long, name = "timezone_to_add")]
+    #[arg(short, long, name = "timezone_to_add")]
     pub add: Option<String>,
     /// Delete a time zone from the list
-    #[clap(short, long, name = "timezone_to_delete")]
+    #[arg(short, long, name = "timezone_to_delete")]
     pub delete: Option<String>,
 }
 

@@ -3,7 +3,7 @@ use chrono::prelude::*;
 use chrono_tz::{OffsetComponents, OffsetName, Tz};
 use colored::*;
 use directories::ProjectDirs;
-use prettytable::{cell, row, Table};
+use prettytable::{row, Table};
 use serde::{Deserialize, Serialize};
 use std::io;
 
@@ -18,7 +18,7 @@ pub struct Store {
     pub timezones: Vec<String>,
 }
 
-impl Default for Store {
+impl ::std::default::Default for Store {
     fn default() -> Self {
         Self {
             timezones: vec![
@@ -36,7 +36,7 @@ where
     T: io::Write,
 {
     pub fn new(app: &str, out: &'a mut T) -> Result<Self> {
-        let store: Store = confy::load(app)?;
+        let store: Store = confy::load(app, None)?;
         Ok(Self {
             store,
             out,
@@ -74,7 +74,7 @@ where
     pub fn add(&mut self, to_add: &str) -> Result<()> {
         match to_add.parse::<Tz>().and_then(|_| {
             self.store.timezones.push(to_add.to_string());
-            confy::store(&self.app, &self.store).map_err(|err| format!("{}", err))
+            confy::store(&self.app, None, &self.store).map_err(|err| format!("{}", err))
         }) {
             Ok(_) => writeln!(
                 self.out,
@@ -92,7 +92,7 @@ where
 
     pub fn delete(&mut self, to_delete: &str) -> Result<()> {
         self.store.timezones.retain(|tz| tz != to_delete);
-        match confy::store(&self.app, &self.store) {
+        match confy::store(&self.app, None, &self.store) {
             Ok(_) => writeln!(
                 self.out,
                 "{}",
@@ -111,7 +111,7 @@ where
 
     pub fn reset(&mut self) -> Result<()> {
         self.store.timezones = Store::default().timezones;
-        match confy::store(&self.app, &self.store) {
+        match confy::store(&self.app, None, &self.store) {
             Ok(_) => writeln!(
                 self.out,
                 "{}",
