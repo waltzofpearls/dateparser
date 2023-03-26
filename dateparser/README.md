@@ -5,10 +5,10 @@
 [![Crates.io][cratesio-badge]][cratesio-url]
 [![Doc.rs][docrs-badge]][docrs-url]
 
-[actions-badge]: https://github.com/waltzofpearls/belt/workflows/ci/badge.svg
-[actions-url]: https://github.com/waltzofpearls/belt/actions?query=workflow%3Aci+branch%3Amain
+[actions-badge]: https://github.com/waltzofpearls/dateparser/workflows/ci/badge.svg
+[actions-url]: https://github.com/waltzofpearls/dateparser/actions?query=workflow%3Aci+branch%3Amain
 [mit-badge]: https://img.shields.io/badge/license-MIT-blue.svg
-[mit-url]: https://github.com/waltzofpearls/belt/blob/main/LICENSE
+[mit-url]: https://github.com/waltzofpearls/dateparser/blob/main/LICENSE
 [cratesio-badge]: https://img.shields.io/crates/v/dateparser.svg
 [cratesio-url]: https://crates.io/crates/dateparser
 [docrs-badge]: https://docs.rs/dateparser/badge.svg
@@ -23,7 +23,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-dateparser = "0.1.8"
+dateparser = "0.2.0"
 ```
 
 And then use `dateparser` in your code:
@@ -57,7 +57,7 @@ Convert returned `DateTime<Utc>` to pacific time zone datetime with `chrono-tz`:
 ```toml
 [dependencies]
 chrono-tz = "0.6.3"
-dateparser = "0.1.8"
+dateparser = "0.2.0"
 ```
 
 ```rust
