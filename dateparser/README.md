@@ -1,4 +1,4 @@
-# dateparser
+# [dateparser](https://crates.io/crates/dateparser)
 
 [![Build Status][actions-badge]][actions-url]
 [![MIT licensed][mit-badge]][mit-url]

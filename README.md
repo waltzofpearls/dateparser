@@ -1,97 +1,47 @@
-# belt + dateparser
+# [dateparser](https://crates.io/crates/dateparser)
 
 [![Build Status][actions-badge]][actions-url]
 [![MIT licensed][mit-badge]][mit-url]
-
-[actions-badge]: https://github.com/waltzofpearls/belt/workflows/ci/badge.svg
-[actions-url]: https://github.com/waltzofpearls/belt/actions?query=workflow%3Aci+branch%3Amain
-[mit-badge]: https://img.shields.io/badge/license-MIT-blue.svg
-[mit-url]: https://github.com/waltzofpearls/belt/blob/main/LICENSE
-
-`belt` is a command line app that can show your time from a list of selected time zones. `dateparser`
-is a rust library for parsing date strings in commonly used formats.
-
-Run `belt` to parse a given date:
-
-```shell
-$ belt 'MAY 12, 2021 16:44 UTC'
-+-------------------+---------------------------+
-| Zone              | Date & Time               |
-+===================+===========================+
-| Local             | 2021-05-12 09:44:00 -0700 |
-|                   | 1620837840                |
-+-------------------+---------------------------+
-| UTC               | 2021-05-12 16:44:00 +0000 |
-|                   | 2021-05-12 16:44 UTC      |
-+-------------------+---------------------------+
-| America/Vancouver | 2021-05-12 09:44:00 -0700 |
-|                   | 2021-05-12 09:44 PDT      |
-+-------------------+---------------------------+
-| America/New_York  | 2021-05-12 12:44:00 -0400 |
-|                   | 2021-05-12 12:44 EDT      |
-+-------------------+---------------------------+
-| Europe/London     | 2021-05-12 17:44:00 +0100 |
-|                   | 2021-05-12 17:44 BST      |
-+-------------------+---------------------------+
-```
-
-Display parsed date in the short form:
-
-```shell
-# parse a unix epoch timestamp
-$ belt 1511648546 --short
-2017-11-25 14:22:26 -0800
-
-# or show the current local datetime
-$ belt --short
-2021-05-15 22:54:34 -0700
-```
-
-Time zones are configurable:
-
-```shell
-$ belt config --help
-belt-config
-Configure time zones list
-
-USAGE:
-    belt config [FLAGS] [OPTIONS]
-
-FLAGS:
-    -h, --help       Prints help information
-    -l, --list       List existing time zones
-    -r, --reset      Reset to default list of time zones
-    -V, --version    Prints version information
-
-OPTIONS:
-    -a, --add <timezone_to_add>          Add a new time zone to the list
-    -d, --delete <timezone_to_delete>    Delete a time zone from the list
-```
-
-## Installation
-
-MacOS Homebrew or Linuxbrew:
-
-```shell
-brew tap waltzofpearls/belt
-brew install belt
-```
-
-## `dateparser`
-
 [![Crates.io][cratesio-badge]][cratesio-url]
 [![Doc.rs][docrs-badge]][docrs-url]
 
+[actions-badge]: https://github.com/waltzofpearls/dateparser/workflows/ci/badge.svg
+[actions-url]: https://github.com/waltzofpearls/dateparser/actions?query=workflow%3Aci+branch%3Amain
+[mit-badge]: https://img.shields.io/badge/license-MIT-blue.svg
+[mit-url]: https://github.com/waltzofpearls/dateparser/blob/main/LICENSE
 [cratesio-badge]: https://img.shields.io/crates/v/dateparser.svg
 [cratesio-url]: https://crates.io/crates/dateparser
 [docrs-badge]: https://docs.rs/dateparser/badge.svg
 [docrs-url]: https://docs.rs/crate/dateparser/
 
-Date parsing in belt is powered by `dateparser` crate, which is [a part of this repo](./dateparser/).
+Parse dates in commonly used string formats with Rust.
 
-## Accepted date formats
+This repo contains 2 cargo workspaces:
 
-Date string in the following formats can be parsed by `belt`:
+- [dateparser](./dateparser): Rust crate for parsing date strings in commonly used formats.
+- [belt](./belt): Command-line tool that can display a given time in a list of selected time zones.
+  It also serves as an example showcasing how you could use dateparser in your project.
+
+## [`dateparser`](./dateparser) crate
+
+```rust
+use dateparser::parse;
+use std::error::Error;
+
+fn main() -> Result<(), Box<dyn Error>> {
+    let parsed = parse("6:15pm")?;
+    println!("{:#?}", parsed);
+    Ok(())
+}
+```
+
+Will parse the input `6:15pm` and print parsed date and time in UTC time zone as `2023-03-26T01:15:00Z`.
+More about this crate on [Docs.rs][1] and in [examples][2] folder
+
+[1]: https://docs.rs/dateparser/latest/dateparser
+[2]: ./dateparser/examples
+
+#### Accepted date formats
 
 ```rust
 // unix timestamp
@@ -215,6 +165,41 @@ Date string in the following formats can be parsed by `belt`:
 "2014年04月08日",
 ```
 
+## [`belt`](./belt) CLI tool
+
+Run `belt` to parse a given date:
+
+```shell
+$> belt 'MAY 12, 2021 16:44 UTC'
++-------------------+---------------------------+
+| Zone              | Date & Time               |
++===================+===========================+
+| Local             | 2021-05-12 09:44:00 -0700 |
+|                   | 1620837840                |
++-------------------+---------------------------+
+| UTC               | 2021-05-12 16:44:00 +0000 |
+|                   | 2021-05-12 16:44 UTC      |
++-------------------+---------------------------+
+| America/Vancouver | 2021-05-12 09:44:00 -0700 |
+|                   | 2021-05-12 09:44 PDT      |
++-------------------+---------------------------+
+| America/New_York  | 2021-05-12 12:44:00 -0400 |
+|                   | 2021-05-12 12:44 EDT      |
++-------------------+---------------------------+
+| Europe/London     | 2021-05-12 17:44:00 +0100 |
+|                   | 2021-05-12 17:44 BST      |
++-------------------+---------------------------+
+```
+
+#### Installation
+
+MacOS Homebrew or Linuxbrew:
+
+```shell
+brew tap waltzofpearls/belt
+brew install belt
+```
+
 ## How to make a new release
 
 List files that need to be updated with new version number:
@@ -232,11 +217,11 @@ It will output something like this:
 ./belt/Cargo.toml:3:version = "0.1.5"
 ```
 
-Next, manually update verion numbers in those listed files or automatically bump the version with
-`make bump-verison`. When auto incrementing version with `make bump-version`, it will only bump the
+Next, automatically bump the version with `make bump-verison` or manually update verion numbers in
+those listed files. When auto incrementing version with `make bump-version`, it will only bump the
 patch version, for example, 0.1.5 will become 0.1.6.
 
-**NOTE**: you may need to run `cargo run` to update `belt` and `dateparser` versions in `Cargo.lock`
+**NOTE**: you may need to run `cargo run` to update `dateparser` and `belt` versions in `Cargo.lock`
 file.
 
 Once those files are updated, run the following command to tag a new version with git and push the
