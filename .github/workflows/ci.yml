@@ -7,23 +7,51 @@ on:
 
 jobs:
   check:
-    name: check
-    runs-on: ubuntu-latest
+    name: check - ${{ matrix.platform.os_name }} with rust ${{ matrix.toolchain }}
+    runs-on: ${{ matrix.platform.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - os_name: Linux
+            os: ubuntu-latest
+          - os_name: macOS
+            os: macOS-latest
+          - os_name: Windows
+            os: windows-latest
+        toolchain:
+          - stable
+          - beta
+          - nightly
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
+          toolchain: ${{ matrix.toolchain }}
       - run: cargo check --all --all-targets --all-features
 
   test:
-    name: test
-    runs-on: ubuntu-latest
+    name: test - ${{ matrix.platform.os_name }} with rust ${{ matrix.toolchain }}
+    runs-on: ${{ matrix.platform.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - os_name: Linux
+            os: ubuntu-latest
+          - os_name: macOS
+            os: macOS-latest
+          - os_name: Windows
+            os: windows-latest
+        toolchain:
+          - stable
+          - beta
+          - nightly
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
+          toolchain: ${{ matrix.toolchain }}
       - run: cargo test --workspace --all-features
 
   fmt:
