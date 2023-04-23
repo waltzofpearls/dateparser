@@ -16,7 +16,7 @@ jobs:
           - os_name: Linux
             os: ubuntu-latest
           - os_name: macOS
-            os: macOS-latest
+            os: macos-latest
           - os_name: Windows
             os: windows-latest
         toolchain:
@@ -39,7 +39,7 @@ jobs:
           - os_name: Linux
             os: ubuntu-latest
           - os_name: macOS
-            os: macOS-latest
+            os: macos-latest
           - os_name: Windows
             os: windows-latest
         toolchain:
