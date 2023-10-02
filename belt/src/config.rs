@@ -48,7 +48,7 @@ where
         ProjectDirs::from("rs", "", &self.app)
             .and_then(|project| project.config_dir().to_str().map(|s: &str| s.to_string()))
             .map(|s| format!("{}/{}.toml", s, self.app))
-            .unwrap_or_else(|| "".to_string())
+            .unwrap_or_default()
     }
 
     pub fn list(&mut self) -> Result<()> {

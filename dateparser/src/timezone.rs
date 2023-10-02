@@ -131,7 +131,7 @@ mod tests {
 
     #[test]
     fn parse() {
-        let test_cases = vec![
+        let test_cases = [
             ("-0800", FixedOffset::west(8 * 3600)),
             ("+10:00", FixedOffset::east(10 * 3600)),
             ("PST", FixedOffset::west(8 * 3600)),
