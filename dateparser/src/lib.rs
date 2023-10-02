@@ -313,7 +313,10 @@ pub fn parse(input: &str) -> Result<DateTime<Utc>> {
 ///     Utc::now().with_timezone(&Pacific).date().and_hms(18, 15, 0).with_timezone(&Utc),
 /// );
 /// ```
-pub fn parse_with_timezone<Tz2: TimeZone>(input: &str, tz: &Tz2) -> Result<DateTime<Utc>> {
+pub fn parse_with_timezone<Tz2: TimeZone + Sync + Send>(
+    input: &str,
+    tz: &Tz2,
+) -> Result<DateTime<Utc>> {
     Parse::new(tz, None).parse(input)
 }
 
@@ -363,7 +366,7 @@ pub fn parse_with_timezone<Tz2: TimeZone>(input: &str, tz: &Tz2) -> Result<DateT
 ///     "parsed_with_utc_midnight"
 /// );
 /// ```
-pub fn parse_with<Tz2: TimeZone>(
+pub fn parse_with<Tz2: TimeZone + Sync + Send>(
     input: &str,
     tz: &Tz2,
     default_time: NaiveTime,
