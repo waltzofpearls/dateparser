@@ -7,17 +7,17 @@ publish = false
 description = "Know your time from a list of selected time zones"
 
 [dependencies]
-anyhow = "1.0.40"
-chrono = "0.4.24"
-chrono-tz = "0.6.3"
-clap = { version = "4.1.13", features = ["derive"] }
-colored = "2.0.0"
+anyhow = "1.0.75"
+chrono = "0.4.31"
+chrono-tz = "0.8.3"
+clap = { version = "4.4.6", features = ["derive"] }
+colored = "2.0.4"
 confy = "0.5.1"
 dateparser = { path = "../dateparser" }
-directories = "^2.0"
+directories = "5.0.1"
 prettytable-rs = "0.10.0"
-serde = { version = "1.0.158", features = ["derive"] }
+serde = { version = "1.0.188", features = ["derive"] }
 
 [dev-dependencies]
-rand = "0.8.3"
-regex = "1.5.4"
+rand = "0.8.5"
+regex = "1.9.6"
