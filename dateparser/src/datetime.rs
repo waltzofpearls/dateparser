@@ -3,26 +3,41 @@ use crate::timezone;
 use anyhow::{anyhow, Result};
 use chrono::prelude::*;
 use lazy_static::lazy_static;
+use rayon::prelude::*;
 use regex::Regex;
+use std::sync::{Arc, Mutex};
 
 /// Parse struct has methods implemented parsers for accepted formats.
+// pub struct Parse<'z, Tz2> {
+// pub struct Parse<Tz2> {
 pub struct Parse<'z, Tz2> {
-    tz: &'z Tz2,
+    // tz: &'z Tz2,
+    // tz: Arc<Mutex<Tz2>>,
+    tz: Arc<Mutex<&'z Tz2>>,
     default_time: Option<NaiveTime>,
 }
 
+// impl<'z, Tz2> Parse<'z, Tz2>
+// impl<Tz2> Parse<Tz2>
 impl<'z, Tz2> Parse<'z, Tz2>
 where
-    Tz2: TimeZone,
+    Tz2: TimeZone + Sync + Send,
 {
     /// Create a new instrance of [`Parse`] with a custom parsing timezone that handles the
     /// datetime string without time offset.
+    // pub fn new(tz: &'z Tz2, default_time: Option<NaiveTime>) -> Self {
+    // pub fn new(tz: Tz2, default_time: Option<NaiveTime>) -> Self {
     pub fn new(tz: &'z Tz2, default_time: Option<NaiveTime>) -> Self {
-        Self { tz, default_time }
+        // Self { tz, default_time }
+        Self {
+            tz: Arc::new(Mutex::new(tz)),
+            default_time,
+        }
     }
 
     /// This method tries to parse the input datetime string with a list of accepted formats. See
     /// more exmaples from [`Parse`], [`crate::parse()`] and [`crate::parse_with_timezone()`].
+    /*
     pub fn parse(&self, input: &str) -> Result<DateTime<Utc>> {
         self.unix_timestamp(input)
             .or_else(|| self.rfc2822(input))
@@ -36,6 +51,30 @@ where
             .or_else(|| self.dot_mdy_or_ymd(input))
             .or_else(|| self.mysql_log_timestamp(input))
             .or_else(|| self.chinese_ymd_family(input))
+            .unwrap_or_else(|| Err(anyhow!("{} did not match any formats.", input)))
+    }
+    */
+
+    pub fn parse(&self, input: &str) -> Result<DateTime<Utc>> {
+        let parsers: Vec<fn(&Self, &str) -> Option<Result<DateTime<Utc>>>> = vec![
+            Self::unix_timestamp,
+            Self::rfc2822,
+            Self::ymd_family,
+            Self::hms_family,
+            Self::month_ymd,
+            Self::month_mdy_family,
+            Self::month_dmy_family,
+            Self::slash_mdy_family,
+            Self::slash_ymd_family,
+            Self::dot_mdy_or_ymd,
+            Self::mysql_log_timestamp,
+            Self::chinese_ymd_family,
+        ];
+
+        parsers
+            .par_iter()
+            .find_any(|&&parser| parser(self, input).is_some())
+            .and_then(|&parser| parser(self, input))
             .unwrap_or_else(|| Err(anyhow!("{} did not match any formats.", input)))
     }
 
@@ -122,6 +161,8 @@ where
     // - 1511648546
     // - 1620021848429
     // - 1620024872717915000
+    // fn unix_timestamp(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
+    // fn unix_timestamp(&self, _tz: &Tz2, input: &str) -> Option<Result<DateTime<Utc>>> {
     fn unix_timestamp(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
         lazy_static! {
             static ref RE: Regex = Regex::new(r"^[0-9]{10,19}$").unwrap();
@@ -157,6 +198,8 @@ where
 
     // rfc2822
     // - Wed, 02 Jun 2021 06:31:39 GMT
+    // fn rfc2822(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
+    // fn rfc2822(&self, _tz: &Tz2, input: &str) -> Option<Result<DateTime<Utc>>> {
     fn rfc2822(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
         DateTime::parse_from_rfc2822(input)
             .ok()
@@ -209,12 +252,21 @@ where
             return None;
         }
 
-        self.tz
-            .datetime_from_str(input, "%Y-%m-%d %H:%M:%S")
-            .or_else(|_| self.tz.datetime_from_str(input, "%Y-%m-%d %H:%M"))
-            .or_else(|_| self.tz.datetime_from_str(input, "%Y-%m-%d %H:%M:%S%.f"))
-            .or_else(|_| self.tz.datetime_from_str(input, "%Y-%m-%d %I:%M:%S %P"))
-            .or_else(|_| self.tz.datetime_from_str(input, "%Y-%m-%d %I:%M %P"))
+        let tz = match self.tz.lock() {
+            Ok(guard) => guard.clone(),
+            Err(_) => return Some(Err(anyhow!("Failed to acquire lock"))),
+        };
+
+        // self.tz
+        tz.datetime_from_str(input, "%Y-%m-%d %H:%M:%S")
+            // .or_else(|_| self.tz.datetime_from_str(input, "%Y-%m-%d %H:%M"))
+            // .or_else(|_| self.tz.datetime_from_str(input, "%Y-%m-%d %H:%M:%S%.f"))
+            // .or_else(|_| self.tz.datetime_from_str(input, "%Y-%m-%d %I:%M:%S %P"))
+            // .or_else(|_| self.tz.datetime_from_str(input, "%Y-%m-%d %I:%M %P"))
+            .or_else(|_| tz.datetime_from_str(input, "%Y-%m-%d %H:%M"))
+            .or_else(|_| tz.datetime_from_str(input, "%Y-%m-%d %H:%M:%S%.f"))
+            .or_else(|_| tz.datetime_from_str(input, "%Y-%m-%d %I:%M:%S %P"))
+            .or_else(|_| tz.datetime_from_str(input, "%Y-%m-%d %I:%M %P"))
             .ok()
             .map(|parsed| parsed.with_timezone(&Utc))
             .map(Ok)
@@ -268,16 +320,23 @@ where
             return None;
         }
 
+        let tz = match self.tz.lock() {
+            Ok(guard) => guard.clone(),
+            Err(_) => return Some(Err(anyhow!("Failed to acquire lock"))),
+        };
+
         // set time to use
         let time = match self.default_time {
             Some(v) => v,
-            None => Utc::now().with_timezone(self.tz).time(),
+            // None => Utc::now().with_timezone(self.tz).time(),
+            None => Utc::now().with_timezone(&tz).time(),
         };
 
         NaiveDate::parse_from_str(input, "%Y-%m-%d")
             .ok()
             .map(|parsed| parsed.and_time(time))
-            .and_then(|datetime| self.tz.from_local_datetime(&datetime).single())
+            // .and_then(|datetime| self.tz.from_local_datetime(&datetime).single())
+            .and_then(|datetime| tz.from_local_datetime(&datetime).single())
             .map(|at_tz| at_tz.with_timezone(&Utc))
             .map(Ok)
     }
@@ -331,7 +390,12 @@ where
             return None;
         }
 
-        let now = Utc::now().with_timezone(self.tz);
+        let tz = match self.tz.lock() {
+            Ok(guard) => guard.clone(),
+            Err(_) => return Some(Err(anyhow!("Failed to acquire lock"))),
+        };
+
+        let now = Utc::now().with_timezone(&tz);
         NaiveTime::parse_from_str(input, "%H:%M:%S")
             .or_else(|_| NaiveTime::parse_from_str(input, "%H:%M"))
             .or_else(|_| NaiveTime::parse_from_str(input, "%I:%M:%S %P"))
@@ -390,17 +454,25 @@ where
             return None;
         }
 
+        // let tz = self.tz.lock().unwrap().clone();
+        let tz = match self.tz.lock() {
+            Ok(guard) => guard.clone(),
+            Err(_) => return Some(Err(anyhow!("Failed to acquire lock"))),
+        };
+
         // set time to use
         let time = match self.default_time {
             Some(v) => v,
-            None => Utc::now().with_timezone(self.tz).time(),
+            // None => Utc::now().with_timezone(self.tz).time(),
+            None => Utc::now().with_timezone(&tz).time(),
         };
 
         NaiveDate::parse_from_str(input, "%Y-%m-%d")
             .or_else(|_| NaiveDate::parse_from_str(input, "%Y-%b-%d"))
             .ok()
             .map(|parsed| parsed.and_time(time))
-            .and_then(|datetime| self.tz.from_local_datetime(&datetime).single())
+            // .and_then(|datetime| self.tz.from_local_datetime(&datetime).single())
+            .and_then(|datetime| tz.from_local_datetime(&datetime).single())
             .map(|at_tz| at_tz.with_timezone(&Utc))
             .map(Ok)
     }
@@ -419,11 +491,18 @@ where
             return None;
         }
 
-        let now = Utc::now().with_timezone(self.tz);
+        let tz = match self.tz.lock() {
+            Ok(guard) => guard.clone(),
+            Err(_) => return Some(Err(anyhow!("Failed to acquire lock"))),
+        };
+
+        // let now = Utc::now().with_timezone(self.tz);
+        let now = Utc::now().with_timezone(&tz);
         let with_year = format!("{} {}", now.year(), input);
-        self.tz
-            .datetime_from_str(&with_year, "%Y %b %d at %I:%M %P")
-            .or_else(|_| self.tz.datetime_from_str(&with_year, "%Y %b %d %H:%M:%S"))
+        // self.tz
+        tz.datetime_from_str(&with_year, "%Y %b %d at %I:%M %P")
+            // .or_else(|_| self.tz.datetime_from_str(&with_year, "%Y %b %d %H:%M:%S"))
+            .or_else(|_| tz.datetime_from_str(&with_year, "%Y %b %d %H:%M:%S"))
             .ok()
             .map(|parsed| parsed.with_timezone(&Utc))
             .map(Ok)
@@ -443,12 +522,20 @@ where
             return None;
         }
 
+        let tz = match self.tz.lock() {
+            Ok(guard) => guard.clone(),
+            Err(_) => return Some(Err(anyhow!("Failed to acquire lock"))),
+        };
+
         let dt = input.replace(", ", " ").replace(". ", " ");
-        self.tz
-            .datetime_from_str(&dt, "%B %d %Y %H:%M:%S")
-            .or_else(|_| self.tz.datetime_from_str(&dt, "%B %d %Y %H:%M"))
-            .or_else(|_| self.tz.datetime_from_str(&dt, "%B %d %Y %I:%M:%S %P"))
-            .or_else(|_| self.tz.datetime_from_str(&dt, "%B %d %Y %I:%M %P"))
+        // self.tz
+        tz.datetime_from_str(&dt, "%B %d %Y %H:%M:%S")
+            // .or_else(|_| self.tz.datetime_from_str(&dt, "%B %d %Y %H:%M"))
+            // .or_else(|_| self.tz.datetime_from_str(&dt, "%B %d %Y %I:%M:%S %P"))
+            // .or_else(|_| self.tz.datetime_from_str(&dt, "%B %d %Y %I:%M %P"))
+            .or_else(|_| tz.datetime_from_str(&dt, "%B %d %Y %H:%M"))
+            .or_else(|_| tz.datetime_from_str(&dt, "%B %d %Y %I:%M:%S %P"))
+            .or_else(|_| tz.datetime_from_str(&dt, "%B %d %Y %I:%M %P"))
             .ok()
             .map(|at_tz| at_tz.with_timezone(&Utc))
             .map(Ok)
@@ -507,10 +594,16 @@ where
             return None;
         }
 
+        let tz = match self.tz.lock() {
+            Ok(guard) => guard.clone(),
+            Err(_) => return Some(Err(anyhow!("Failed to acquire lock"))),
+        };
+
         // set time to use
         let time = match self.default_time {
             Some(v) => v,
-            None => Utc::now().with_timezone(self.tz).time(),
+            // None => Utc::now().with_timezone(self.tz).time(),
+            None => Utc::now().with_timezone(&tz).time(),
         };
 
         let dt = input.replace(", ", " ").replace(". ", " ");
@@ -518,7 +611,8 @@ where
             .or_else(|_| NaiveDate::parse_from_str(&dt, "%B %d %Y"))
             .ok()
             .map(|parsed| parsed.and_time(time))
-            .and_then(|datetime| self.tz.from_local_datetime(&datetime).single())
+            // .and_then(|datetime| self.tz.from_local_datetime(&datetime).single())
+            .and_then(|datetime| tz.from_local_datetime(&datetime).single())
             .map(|at_tz| at_tz.with_timezone(&Utc))
             .map(Ok)
     }
@@ -537,13 +631,22 @@ where
             return None;
         }
 
+        let tz = match self.tz.lock() {
+            Ok(guard) => guard.clone(),
+            Err(_) => return Some(Err(anyhow!("Failed to acquire lock"))),
+        };
+
         let dt = input.replace(", ", " ");
-        self.tz
-            .datetime_from_str(&dt, "%d %B %Y %H:%M:%S")
-            .or_else(|_| self.tz.datetime_from_str(&dt, "%d %B %Y %H:%M"))
-            .or_else(|_| self.tz.datetime_from_str(&dt, "%d %B %Y %H:%M:%S%.f"))
-            .or_else(|_| self.tz.datetime_from_str(&dt, "%d %B %Y %I:%M:%S %P"))
-            .or_else(|_| self.tz.datetime_from_str(&dt, "%d %B %Y %I:%M %P"))
+        // self.tz
+        tz.datetime_from_str(&dt, "%d %B %Y %H:%M:%S")
+            // .or_else(|_| self.tz.datetime_from_str(&dt, "%d %B %Y %H:%M"))
+            // .or_else(|_| self.tz.datetime_from_str(&dt, "%d %B %Y %H:%M:%S%.f"))
+            // .or_else(|_| self.tz.datetime_from_str(&dt, "%d %B %Y %I:%M:%S %P"))
+            // .or_else(|_| self.tz.datetime_from_str(&dt, "%d %B %Y %I:%M %P"))
+            .or_else(|_| tz.datetime_from_str(&dt, "%d %B %Y %H:%M"))
+            .or_else(|_| tz.datetime_from_str(&dt, "%d %B %Y %H:%M:%S%.f"))
+            .or_else(|_| tz.datetime_from_str(&dt, "%d %B %Y %I:%M:%S %P"))
+            .or_else(|_| tz.datetime_from_str(&dt, "%d %B %Y %I:%M %P"))
             .ok()
             .map(|at_tz| at_tz.with_timezone(&Utc))
             .map(Ok)
@@ -563,17 +666,24 @@ where
             return None;
         }
 
+        let tz = match self.tz.lock() {
+            Ok(guard) => guard.clone(),
+            Err(_) => return Some(Err(anyhow!("Failed to acquire lock"))),
+        };
+
         // set time to use
         let time = match self.default_time {
             Some(v) => v,
-            None => Utc::now().with_timezone(self.tz).time(),
+            // None => Utc::now().with_timezone(self.tz).time(),
+            None => Utc::now().with_timezone(&tz).time(),
         };
 
         NaiveDate::parse_from_str(input, "%d %B %y")
             .or_else(|_| NaiveDate::parse_from_str(input, "%d %B %Y"))
             .ok()
             .map(|parsed| parsed.and_time(time))
-            .and_then(|datetime| self.tz.from_local_datetime(&datetime).single())
+            // .and_then(|datetime| self.tz.from_local_datetime(&datetime).single())
+            .and_then(|datetime| tz.from_local_datetime(&datetime).single())
             .map(|at_tz| at_tz.with_timezone(&Utc))
             .map(Ok)
     }
@@ -602,17 +712,31 @@ where
             return None;
         }
 
-        self.tz
-            .datetime_from_str(input, "%m/%d/%y %H:%M:%S")
-            .or_else(|_| self.tz.datetime_from_str(input, "%m/%d/%y %H:%M"))
-            .or_else(|_| self.tz.datetime_from_str(input, "%m/%d/%y %H:%M:%S%.f"))
-            .or_else(|_| self.tz.datetime_from_str(input, "%m/%d/%y %I:%M:%S %P"))
-            .or_else(|_| self.tz.datetime_from_str(input, "%m/%d/%y %I:%M %P"))
-            .or_else(|_| self.tz.datetime_from_str(input, "%m/%d/%Y %H:%M:%S"))
-            .or_else(|_| self.tz.datetime_from_str(input, "%m/%d/%Y %H:%M"))
-            .or_else(|_| self.tz.datetime_from_str(input, "%m/%d/%Y %H:%M:%S%.f"))
-            .or_else(|_| self.tz.datetime_from_str(input, "%m/%d/%Y %I:%M:%S %P"))
-            .or_else(|_| self.tz.datetime_from_str(input, "%m/%d/%Y %I:%M %P"))
+        let tz = match self.tz.lock() {
+            Ok(guard) => guard.clone(),
+            Err(_) => return Some(Err(anyhow!("Failed to acquire lock"))),
+        };
+
+        // self.tz
+        tz.datetime_from_str(input, "%m/%d/%y %H:%M:%S")
+            // .or_else(|_| self.tz.datetime_from_str(input, "%m/%d/%y %H:%M"))
+            // .or_else(|_| self.tz.datetime_from_str(input, "%m/%d/%y %H:%M:%S%.f"))
+            // .or_else(|_| self.tz.datetime_from_str(input, "%m/%d/%y %I:%M:%S %P"))
+            // .or_else(|_| self.tz.datetime_from_str(input, "%m/%d/%y %I:%M %P"))
+            // .or_else(|_| self.tz.datetime_from_str(input, "%m/%d/%Y %H:%M:%S"))
+            // .or_else(|_| self.tz.datetime_from_str(input, "%m/%d/%Y %H:%M"))
+            // .or_else(|_| self.tz.datetime_from_str(input, "%m/%d/%Y %H:%M:%S%.f"))
+            // .or_else(|_| self.tz.datetime_from_str(input, "%m/%d/%Y %I:%M:%S %P"))
+            // .or_else(|_| self.tz.datetime_from_str(input, "%m/%d/%Y %I:%M %P"))
+            .or_else(|_| tz.datetime_from_str(input, "%m/%d/%y %H:%M"))
+            .or_else(|_| tz.datetime_from_str(input, "%m/%d/%y %H:%M:%S%.f"))
+            .or_else(|_| tz.datetime_from_str(input, "%m/%d/%y %I:%M:%S %P"))
+            .or_else(|_| tz.datetime_from_str(input, "%m/%d/%y %I:%M %P"))
+            .or_else(|_| tz.datetime_from_str(input, "%m/%d/%Y %H:%M:%S"))
+            .or_else(|_| tz.datetime_from_str(input, "%m/%d/%Y %H:%M"))
+            .or_else(|_| tz.datetime_from_str(input, "%m/%d/%Y %H:%M:%S%.f"))
+            .or_else(|_| tz.datetime_from_str(input, "%m/%d/%Y %I:%M:%S %P"))
+            .or_else(|_| tz.datetime_from_str(input, "%m/%d/%Y %I:%M %P"))
             .ok()
             .map(|at_tz| at_tz.with_timezone(&Utc))
             .map(Ok)
@@ -631,17 +755,24 @@ where
             return None;
         }
 
+        let tz = match self.tz.lock() {
+            Ok(guard) => guard.clone(),
+            Err(_) => return Some(Err(anyhow!("Failed to acquire lock"))),
+        };
+
         // set time to use
         let time = match self.default_time {
             Some(v) => v,
-            None => Utc::now().with_timezone(self.tz).time(),
+            // None => Utc::now().with_timezone(self.tz).time(),
+            None => Utc::now().with_timezone(&tz).time(),
         };
 
         NaiveDate::parse_from_str(input, "%m/%d/%y")
             .or_else(|_| NaiveDate::parse_from_str(input, "%m/%d/%Y"))
             .ok()
             .map(|parsed| parsed.and_time(time))
-            .and_then(|datetime| self.tz.from_local_datetime(&datetime).single())
+            // .and_then(|datetime| self.tz.from_local_datetime(&datetime).single())
+            .and_then(|datetime| tz.from_local_datetime(&datetime).single())
             .map(|at_tz| at_tz.with_timezone(&Utc))
             .map(Ok)
     }
@@ -664,12 +795,21 @@ where
             return None;
         }
 
-        self.tz
-            .datetime_from_str(input, "%Y/%m/%d %H:%M:%S")
-            .or_else(|_| self.tz.datetime_from_str(input, "%Y/%m/%d %H:%M"))
-            .or_else(|_| self.tz.datetime_from_str(input, "%Y/%m/%d %H:%M:%S%.f"))
-            .or_else(|_| self.tz.datetime_from_str(input, "%Y/%m/%d %I:%M:%S %P"))
-            .or_else(|_| self.tz.datetime_from_str(input, "%Y/%m/%d %I:%M %P"))
+        let tz = match self.tz.lock() {
+            Ok(guard) => guard.clone(),
+            Err(_) => return Some(Err(anyhow!("Failed to acquire lock"))),
+        };
+
+        // self.tz
+        tz.datetime_from_str(input, "%Y/%m/%d %H:%M:%S")
+            // .or_else(|_| self.tz.datetime_from_str(input, "%Y/%m/%d %H:%M"))
+            // .or_else(|_| self.tz.datetime_from_str(input, "%Y/%m/%d %H:%M:%S%.f"))
+            // .or_else(|_| self.tz.datetime_from_str(input, "%Y/%m/%d %I:%M:%S %P"))
+            // .or_else(|_| self.tz.datetime_from_str(input, "%Y/%m/%d %I:%M %P"))
+            .or_else(|_| tz.datetime_from_str(input, "%Y/%m/%d %H:%M"))
+            .or_else(|_| tz.datetime_from_str(input, "%Y/%m/%d %H:%M:%S%.f"))
+            .or_else(|_| tz.datetime_from_str(input, "%Y/%m/%d %I:%M:%S %P"))
+            .or_else(|_| tz.datetime_from_str(input, "%Y/%m/%d %I:%M %P"))
             .ok()
             .map(|at_tz| at_tz.with_timezone(&Utc))
             .map(Ok)
@@ -686,16 +826,23 @@ where
             return None;
         }
 
+        let tz = match self.tz.lock() {
+            Ok(guard) => guard.clone(),
+            Err(_) => return Some(Err(anyhow!("Failed to acquire lock"))),
+        };
+
         // set time to use
         let time = match self.default_time {
             Some(v) => v,
-            None => Utc::now().with_timezone(self.tz).time(),
+            // None => Utc::now().with_timezone(self.tz).time(),
+            None => Utc::now().with_timezone(&tz).time(),
         };
 
         NaiveDate::parse_from_str(input, "%Y/%m/%d")
             .ok()
             .map(|parsed| parsed.and_time(time))
-            .and_then(|datetime| self.tz.from_local_datetime(&datetime).single())
+            // .and_then(|datetime| self.tz.from_local_datetime(&datetime).single())
+            .and_then(|datetime| tz.from_local_datetime(&datetime).single())
             .map(|at_tz| at_tz.with_timezone(&Utc))
             .map(Ok)
     }
@@ -715,10 +862,16 @@ where
             return None;
         }
 
+        // let tz = self.tz.lock().unwrap().clone();
+        let tz = match self.tz.lock() {
+            Ok(guard) => guard.clone(),
+            Err(_) => return Some(Err(anyhow!("Failed to acquire lock"))),
+        };
+
         // set time to use
         let time = match self.default_time {
             Some(v) => v,
-            None => Utc::now().with_timezone(self.tz).time(),
+            None => Utc::now().with_timezone(&tz).time(),
         };
 
         NaiveDate::parse_from_str(input, "%m.%d.%y")
@@ -729,7 +882,7 @@ where
             })
             .ok()
             .map(|parsed| parsed.and_time(time))
-            .and_then(|datetime| self.tz.from_local_datetime(&datetime).single())
+            .and_then(|datetime| tz.from_local_datetime(&datetime).single())
             .map(|at_tz| at_tz.with_timezone(&Utc))
             .map(Ok)
     }
@@ -744,8 +897,13 @@ where
             return None;
         }
 
-        self.tz
-            .datetime_from_str(input, "%y%m%d %H:%M:%S")
+        let tz = match self.tz.lock() {
+            Ok(guard) => guard.clone(),
+            Err(_) => return Some(Err(anyhow!("Failed to acquire lock"))),
+        };
+
+        // self.tz
+        tz.datetime_from_str(input, "%y%m%d %H:%M:%S")
             .ok()
             .map(|at_tz| at_tz.with_timezone(&Utc))
             .map(Ok)
@@ -763,8 +921,13 @@ where
             return None;
         }
 
-        self.tz
-            .datetime_from_str(input, "%Y年%m月%d日%H时%M分%S秒")
+        let tz = match self.tz.lock() {
+            Ok(guard) => guard.clone(),
+            Err(_) => return Some(Err(anyhow!("Failed to acquire lock"))),
+        };
+
+        // self.tz
+        tz.datetime_from_str(input, "%Y年%m月%d日%H时%M分%S秒")
             .ok()
             .map(|at_tz| at_tz.with_timezone(&Utc))
             .map(Ok)
@@ -780,16 +943,23 @@ where
             return None;
         }
 
+        let tz = match self.tz.lock() {
+            Ok(guard) => guard.clone(),
+            Err(_) => return Some(Err(anyhow!("Failed to acquire lock"))),
+        };
+
         // set time to use
         let time = match self.default_time {
             Some(v) => v,
-            None => Utc::now().with_timezone(self.tz).time(),
+            // None => Utc::now().with_timezone(self.tz).time(),
+            None => Utc::now().with_timezone(&tz).time(),
         };
 
         NaiveDate::parse_from_str(input, "%Y年%m月%d日")
             .ok()
             .map(|parsed| parsed.and_time(time))
-            .and_then(|datetime| self.tz.from_local_datetime(&datetime).single())
+            // .and_then(|datetime| self.tz.from_local_datetime(&datetime).single())
+            .and_then(|datetime| tz.from_local_datetime(&datetime).single())
             .map(|at_tz| at_tz.with_timezone(&Utc))
             .map(Ok)
     }
