@@ -217,7 +217,7 @@ It will output something like this:
 ./belt/Cargo.toml:3:version = "0.1.5"
 ```
 
-Next, automatically bump the version with `make bump-verison` or manually update verion numbers in
+Next, automatically bump the version with `make bump-version` or manually update verion numbers in
 those listed files. When auto incrementing version with `make bump-version`, it will only bump the
 patch version, for example, 0.1.5 will become 0.1.6.
 
