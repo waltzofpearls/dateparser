@@ -219,13 +219,17 @@ It will output something like this:
 
 Next, automatically bump the version with `make bump-version` or manually update verion numbers in
 those listed files. When auto incrementing version with `make bump-version`, it will only bump the
-patch version, for example, 0.1.5 will become 0.1.6.
+patch version, for example, 0.1.5 will become 0.1.6. Automatic version bump will create a git branch,
+commit and push the changes. You will need to create a pull request from GitHub to merge those changes
+from the git branch that's automatically created.
 
-**NOTE**: you may need to run `cargo run` to update `dateparser` and `belt` versions in `Cargo.lock`
-file.
+**NOTE**: if those files with version numbers are manually edited, then you will need to run `cargo update`
+to update `dateparser` and `belt` versions in the `Cargo.lock` file, and then git commit and push those
+changes to a git branch, and create a pull request from that branch.
 
-Once those files are updated, run the following command to tag a new version with git and push the
-new tag to GitHub. This will trigger a build and release workflow run in GitHub Actions:
+Once the pull request is merged and those files are updated, run the following command to tag a new
+version with git and push the new tag to GitHub. This will trigger a build and release workflow run
+in GitHub Actions:
 
 ```shell
 make release
