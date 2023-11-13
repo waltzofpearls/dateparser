@@ -61,14 +61,31 @@ show-version-files: ## Find all files with the current version
 
 .PHONY: bump-version
 bump-version: ## Bump version in files that contain the current version
-	@echo "Bumping version $(VERSION) -> $(NEXT_VERSION)..."
+	@echo "👉 Bumping version $(VERSION) -> $(NEXT_VERSION)..."
+	@echo
+	@echo "🚀 Create a git branch for the version bump:"
+	git checkout -b bump-version-$(NEXT_VERSION)
+	@echo
+	@echo "🚀 Update version in files:"
 	@for file in $(shell grep -rl --exclude-dir={target,.git} --exclude Cargo.lock --fixed-strings '"$(VERSION)"' .); do \
-		echo "In file $$file"; \
-		sed -i '' -e 's/$(VERSION)/$(NEXT_VERSION)/g' $$file; \
+		echo "✅ In file $$file"; \
+		sed -i '' -e 's/$(subst .,\.,$(VERSION))/$(NEXT_VERSION)/g' $$file; \
+		git add $$file; \
 	done
 	@echo
-	@echo "Bumped version in the following files:"
+	@echo "🚀 Update Cargo.lock:"
+	cargo update
+	git add Cargo.lock
+	@echo
+	@echo "🚀 Bumped version in the following files:"
 	@make show-version-files
+	@echo
+	@echo "🚀 Commit the changes:"
+	git commit -m "version: bump to $(NEXT_VERSION)"
+	@echo "🚀 Push the branch to GitHub:"
+	git push --set-upstream origin bump-version-$(NEXT_VERSION)
+	@echo
+	@echo "🎉 Next, create a pull request on GitHub and merge it."
 
 .PHONY: release
 release: ## Make a new tag based on the version from Cargo.toml and push to GitHub
