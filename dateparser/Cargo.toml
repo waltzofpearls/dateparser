@@ -11,14 +11,14 @@ license = "MIT"
 edition = "2021"
 
 [dependencies]
-anyhow = "1.0.40"
-chrono = "0.4.24"
+anyhow = "1.0.75"
+chrono = "0.4.31"
 lazy_static = "1.4.0"
-regex = "1.6.0"
+regex = "1.10.2"
 
 [dev-dependencies]
-chrono-tz = "0.6.3"
-criterion = { version = "0.3.6", features = ["html_reports"] }
+chrono-tz = "0.8.4"
+criterion = { version = "0.5.1", features = ["html_reports"] }
 
 [[bench]]
 name = "parse"
