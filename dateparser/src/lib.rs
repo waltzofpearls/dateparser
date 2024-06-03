@@ -171,7 +171,7 @@
 //!     "03.31.2014",
 //!     "08.21.71",
 //!     // yyyy.mm.dd
-//!     "2014.03.30",
+//!     "2014.03.29",
 //!     "2014.03",
 //!     // yymmdd hh:mm:ss mysql log
 //!     "171113 14:14:20",
@@ -571,9 +571,9 @@ mod tests {
             ),
             (
                 "dot_mdy_or_ymd",
-                "2014.03.30",
+                "2014.03.29",
                 Local
-                    .ymd(2014, 3, 30)
+                    .ymd(2014, 3, 29)
                     .and_time(Local::now().time())
                     .unwrap()
                     .with_timezone(&Utc),
@@ -786,8 +786,8 @@ mod tests {
             ),
             (
                 "dot_mdy_or_ymd",
-                "2014.03.30",
-                Utc.ymd(2014, 3, 30).and_time(Utc::now().time()).unwrap(),
+                "2014.03.29",
+                Utc.ymd(2014, 3, 29).and_time(Utc::now().time()).unwrap(),
                 Trunc::Seconds,
             ),
             (
