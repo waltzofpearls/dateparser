@@ -72,10 +72,12 @@ where
     }
 
     pub fn add(&mut self, to_add: &str) -> Result<()> {
-        match to_add.parse::<Tz>().and_then(|_| {
+        let result = to_add.parse::<Tz>().and_then(|_| {
             self.store.timezones.push(to_add.to_string());
             confy::store(&self.app, None, &self.store).map_err(|err| format!("{}", err))
-        }) {
+        });
+
+        match result {
             Ok(_) => writeln!(
                 self.out,
                 "{}",
