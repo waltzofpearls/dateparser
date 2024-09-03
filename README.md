@@ -150,13 +150,12 @@ More about this crate on [Docs.rs][1] and in [examples][2] folder
 // yyyy/mm/dd
 "2014/3/31",
 "2014/03/31",
-// mm.dd.yyyy
-"3.31.2014",
-"03.31.2014",
-"08.21.71",
-// yyyy.mm.dd
-"2014.03.30",
-"2014.03",
+// dd.mm.yyyy
+"31.3.2014",
+"31.03.2014",
+"21.08.71",
+// yyyy.dd.mm
+"2014.30.03",
 // yymmdd hh:mm:ss mysql log
 "171113 14:14:20",
 // chinese yyyy mm dd hh mm ss
