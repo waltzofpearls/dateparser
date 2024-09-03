@@ -25,10 +25,11 @@ lazy_static! {
         "08/21/71",                      // slash_mdy
         "2012/03/19 10:11:59",           // slash_ymd_hms
         "2014/3/31",                     // slash_ymd
-        "2014.03.30",                    // dot_mdy_or_ymd
+        "2014.30.3",                     // dot_mdy_or_ymd
+        "28.09.2023",                    // dot_mdy_or_ymd
         "171113 14:14:20",               // mysql_log_timestamp
-        "2014年04月08日11时25分18秒",    // chinese_ymd_hms
-        "2014年04月08日",                // chinese_ymd
+        "2014年04月08日11时25分18秒",      // chinese_ymd_hms
+        "2014年04月08日",                 // chinese_ymd
     ];
 }
 

@@ -34,7 +34,7 @@ where
             .or_else(|| self.slash_mdy_family(input))
             .or_else(|| self.hyphen_mdy_family(input))
             .or_else(|| self.slash_ymd_family(input))
-            .or_else(|| self.dot_mdy_or_ymd(input))
+            .or_else(|| self.dot_dmy_or_ydm(input))
             .or_else(|| self.mysql_log_timestamp(input))
             .or_else(|| self.chinese_ymd_family(input))
             .unwrap_or_else(|| Err(anyhow!("{} did not match any formats.", input)))
@@ -779,16 +779,15 @@ where
             .map(Ok)
     }
 
-    // mm.dd.yyyy
-    // - 3.31.2014
-    // - 03.31.2014
-    // - 08.21.71
-    // yyyy.mm.dd
-    // - 2014.03.30
-    // - 2014.03
-    fn dot_mdy_or_ymd(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
+    // dd.mm.yyyy
+    // - 31.3.2014
+    // - 31.03.2014
+    // - 21.08.71
+    // yyyy.dd.mm
+    // - 2014.30.03
+    fn dot_dmy_or_ydm(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
         lazy_static! {
-            static ref RE: Regex = Regex::new(r"[0-9]{1,4}.[0-9]{1,4}[0-9]{1,4}").unwrap();
+            static ref RE: Regex = Regex::new(r"[0-9]{1,4}.[0-9]{1,2}.[0-9]{1,4}").unwrap();
         }
         if !RE.is_match(input) {
             return None;
@@ -800,12 +799,9 @@ where
             None => Utc::now().with_timezone(self.tz).time(),
         };
 
-        NaiveDate::parse_from_str(input, "%m.%d.%y")
-            .or_else(|_| NaiveDate::parse_from_str(input, "%m.%d.%Y"))
-            .or_else(|_| NaiveDate::parse_from_str(input, "%Y.%m.%d"))
-            .or_else(|_| {
-                NaiveDate::parse_from_str(&format!("{}.{}", input, Utc::now().day()), "%Y.%m.%d")
-            })
+        NaiveDate::parse_from_str(input, "%d.%m.%y")
+            .or_else(|_| NaiveDate::parse_from_str(input, "%d.%m.%Y"))
+            .or_else(|_| NaiveDate::parse_from_str(input, "%Y.%d.%m"))
             .ok()
             .map(|parsed| parsed.and_time(time))
             .and_then(|datetime| self.tz.from_local_datetime(&datetime).single())
@@ -1718,7 +1714,7 @@ mod tests {
         for &(input, want) in test_cases.iter() {
             assert_eq!(
                 parse
-                    .dot_mdy_or_ymd(input)
+                    .dot_dmy_or_ydm(input)
                     .unwrap()
                     .unwrap()
                     .trunc_subsecs(0)
@@ -1729,7 +1725,7 @@ mod tests {
                 input
             )
         }
-        assert!(parse.dot_mdy_or_ymd("not-date-time").is_none());
+        assert!(parse.dot_dmy_or_ydm("not-date-time").is_none());
     }
 
     #[test]
