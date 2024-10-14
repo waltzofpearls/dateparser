@@ -31,6 +31,7 @@ where
             .or_else(|| self.month_ymd(input))
             .or_else(|| self.month_mdy_family(input))
             .or_else(|| self.month_dmy_family(input))
+            .or_else(|| self.hyphen_month_str_dmy_family(input))
             .or_else(|| self.slash_mdy_family(input))
             .or_else(|| self.hyphen_mdy_family(input))
             .or_else(|| self.slash_ymd_family(input))
@@ -86,6 +87,16 @@ where
             return None;
         }
         self.month_dmy_hms(input).or_else(|| self.month_dmy(input))
+    }
+
+    fn hyphen_month_str_dmy_family(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
+        lazy_static! {
+            static ref RE: Regex = Regex::new(r"^[0-9]{1,2}-+[a-zA-Z]{3,9}").unwrap();
+        }
+        if !RE.is_match(input) {
+            return None;
+        }
+        self.hyphen_month_str_dmy_hms(input).or_else(|| self.hyphen_month_str_dmy(input))
     }
 
     fn slash_mdy_family(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
@@ -588,6 +599,63 @@ where
             .map(|at_tz| at_tz.with_timezone(&Utc))
             .map(Ok)
     }
+
+    // dd Mon yyyy hh:mm:ss
+    // - 12-Feb-2006, 19:17
+    // - 12-Feb-2006 19:17
+    // - 14-May-2019 19:11:40.164
+    fn hyphen_month_str_dmy_hms(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
+        lazy_static! {
+            static ref RE: Regex = Regex::new(
+                r"^[0-9]{1,2}-[a-zA-Z]{3,9}-[0-9]{2,4},?\s+[0-9]{1,2}:[0-9]{2}(:[0-9]{2})?(\.[0-9]{1,9})?$",
+            ).unwrap();
+        }
+        if !RE.is_match(input) {
+            return None;
+        }
+
+        let dt = input.replace(", ", " ");
+	dbg!(input);
+        self.tz
+            .datetime_from_str(&dt, "%d-%B-%Y %H:%M:%S")
+            .or_else(|_| self.tz.datetime_from_str(&dt, "%d-%B-%Y %H:%M"))
+            .or_else(|_| self.tz.datetime_from_str(&dt, "%d-%B-%Y %H:%M:%S%.f"))
+            .or_else(|_| self.tz.datetime_from_str(&dt, "%d-%B-%Y %I:%M:%S %P"))
+            .or_else(|_| self.tz.datetime_from_str(&dt, "%d-%B-%Y %I:%M %P"))
+            .ok()
+            .map(|at_tz| at_tz.with_timezone(&Utc))
+            .map(Ok)
+    }
+
+    // dd Mon yyyy
+    // - 7-oct-70
+    // - 7-oct-1970
+    // - 03-February-2013
+    // - 1-July-2013
+    fn hyphen_month_str_dmy(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
+        lazy_static! {
+            static ref RE: Regex =
+                Regex::new(r"^[0-9]{1,2}-+[a-zA-Z]{3,9}-+[0-9]{2,4}$").unwrap();
+        }
+        if !RE.is_match(input) {
+            return None;
+        }
+
+        // set time to use
+        let time = match self.default_time {
+            Some(v) => v,
+            None => Utc::now().with_timezone(self.tz).time(),
+        };
+
+        NaiveDate::parse_from_str(input, "%d-%B-%y")
+            .or_else(|_| NaiveDate::parse_from_str(input, "%d-%B-%Y"))
+            .ok()
+            .map(|parsed| parsed.and_time(time))
+            .and_then(|datetime| self.tz.from_local_datetime(&datetime).single())
+            .map(|at_tz| at_tz.with_timezone(&Utc))
+            .map(Ok)
+    }
+
 
     // mm/dd/yyyy hh:mm:ss
     // - 4/8/2014 22:05
@@ -1477,6 +1545,71 @@ mod tests {
             )
         }
         assert!(parse.month_dmy("not-date-time").is_none());
+    }
+
+
+    #[test]
+    fn hyphen_month_str_dmy_hms() {
+        let parse = Parse::new(&Utc, None);
+
+        let test_cases = [
+            (
+                "12-Feb-2006, 19:17",
+                Utc.ymd(2006, 2, 12).and_hms(19, 17, 0),
+            ),
+            ("12-Feb-2006 19:17", Utc.ymd(2006, 2, 12).and_hms(19, 17, 0)),
+            (
+                "14-May-2019 19:11:40.164",
+                Utc.ymd(2019, 5, 14).and_hms_milli(19, 11, 40, 164),
+            ),
+        ];
+
+        for &(input, want) in test_cases.iter() {
+            assert_eq!(
+                parse.hyphen_month_str_dmy_hms(input).unwrap().unwrap(),
+                want,
+                "hyphen_month_str_dmy_hms/{}",
+                input
+            )
+        }
+        assert!(parse.hyphen_month_str_dmy_hms("not-date-time").is_none());
+    }
+
+    #[test]
+    fn hyphen_month_str_dmy() {
+        let parse = Parse::new(&Utc, None);
+
+        let test_cases = [
+            ("7-oct-70", Utc.ymd(1970, 10, 7).and_time(Utc::now().time())),
+            (
+                "7-oct-1970",
+                Utc.ymd(1970, 10, 7).and_time(Utc::now().time()),
+            ),
+            (
+                "03-February-2013",
+                Utc.ymd(2013, 2, 3).and_time(Utc::now().time()),
+            ),
+            (
+                "1-July-2013",
+                Utc.ymd(2013, 7, 1).and_time(Utc::now().time()),
+            ),
+        ];
+
+        for &(input, want) in test_cases.iter() {
+            assert_eq!(
+                parse
+                    .hyphen_month_str_dmy(input)
+                    .unwrap()
+                    .unwrap()
+                    .trunc_subsecs(0)
+                    .with_second(0)
+                    .unwrap(),
+                want.unwrap().trunc_subsecs(0).with_second(0).unwrap(),
+                "hyphen_month_str_dmy/{}",
+                input
+            )
+        }
+        assert!(parse.hyphen_month_str_dmy("not-date-time").is_none());
     }
 
     #[test]
