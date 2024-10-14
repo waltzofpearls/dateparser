@@ -188,6 +188,13 @@ fn main() -> Result<(), Box<dyn Error>> {
 "oct. 7, 1970",
 "oct. 7, 70",
 "October 7, 1970",
+// dd-Mon-yyyy hh:mm:ss
+"12-Feb-2006, 19:17",
+"12-Feb-2006 19:17",
+"14-October-2019 19:11:40.164",
+// dd-Mon-yyyy
+"12-Feb-2006",
+"14-October-2019",
 // dd Mon yyyy hh:mm:ss
 "12 Feb 2006, 19:17",
 "12 Feb 2006 19:17",
