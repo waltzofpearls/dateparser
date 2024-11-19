@@ -846,7 +846,7 @@ where
             .map(Ok)
     }
 
-    // dd/mmyyyy
+    // dd/mm/yyyy
     // - 31/3/2014
     // - 31/03/2014
     // - 21/08/71
@@ -1932,7 +1932,7 @@ mod tests {
                 input
             )
         }
-        assert!(parse.hyphen_mdy_hms("not-date-time").is_none());
+        assert!(parse.hyphen_dmy_hms("not-date-time").is_none());
     }
 
     #[test]
