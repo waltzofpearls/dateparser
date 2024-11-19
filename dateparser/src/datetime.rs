@@ -33,6 +33,11 @@ where
             .or_else(|| self.month_dmy_family(input))
             .or_else(|| self.slash_mdy_family(input))
             .or_else(|| self.hyphen_mdy_family(input))
+            // (note) parsing as mdy is prioritized over dmy
+            // meaning 1/3 will parsed as January 3rd
+            // instead of March 1st.
+            .or_else(|| self.slash_dmy_family(input))
+            .or_else(|| self.hyphen_dmy_family(input))
             .or_else(|| self.slash_ymd_family(input))
             .or_else(|| self.dot_mdy_or_ymd(input))
             .or_else(|| self.mysql_log_timestamp(input))
@@ -105,7 +110,29 @@ where
         if !RE.is_match(input) {
             return None;
         }
-        self.hyphen_mdy_hms(input).or_else(|| self.hyphen_mdy(input))
+        self.hyphen_mdy_hms(input)
+            .or_else(|| self.hyphen_mdy(input))
+    }
+
+    fn slash_dmy_family(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
+        lazy_static! {
+            static ref RE: Regex = Regex::new(r"^[0-9]{1,2}/[0-9]{1,2}").unwrap();
+        }
+        if !RE.is_match(input) {
+            return None;
+        }
+        self.slash_dmy_hms(input).or_else(|| self.slash_dmy(input))
+    }
+
+    fn hyphen_dmy_family(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
+        lazy_static! {
+            static ref RE: Regex = Regex::new(r"^[0-9]{1,2}-[0-9]{1,2}").unwrap();
+        }
+        if !RE.is_match(input) {
+            return None;
+        }
+        self.hyphen_dmy_hms(input)
+            .or_else(|| self.hyphen_dmy(input))
     }
 
     fn slash_ymd_family(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
@@ -774,6 +801,142 @@ where
             .or_else(|_| self.tz.datetime_from_str(input, "%m-%d-%Y %H:%M:%S%.f"))
             .or_else(|_| self.tz.datetime_from_str(input, "%m-%d-%Y %I:%M:%S %P"))
             .or_else(|_| self.tz.datetime_from_str(input, "%m-%d-%Y %I:%M %P"))
+            .ok()
+            .map(|at_tz| at_tz.with_timezone(&Utc))
+            .map(Ok)
+    }
+
+    // dd/mm/yyyy hh:mm:ss
+    // - 8/4/2014 22:05
+    // - 08/04/2014 22:05
+    // - 8/4/14 22:05
+    // - 04/2/2014 03:00:51
+    // - 8/8/1965 12:00:00 AM
+    // - 8/8/1965 01:00:01 PM
+    // - 8/8/1965 01:00 PM
+    // - 8/8/1965 1:00 PM
+    // - 8/8/1965 12:00 AM
+    // - 4/02/2014 03:00:51
+    // - 19/03/2012 10:11:59
+    // - 19/03/2012 10:11:59.3186369
+    fn slash_dmy_hms(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
+        lazy_static! {
+            static ref RE: Regex = Regex::new(
+                r"^[0-9]{1,2}/[0-9]{1,2}/[0-9]{2,4}\s+[0-9]{1,2}:[0-9]{2}(:[0-9]{2})?(\.[0-9]{1,9})?\s*(am|pm|AM|PM)?$"
+            )
+            .unwrap();
+        }
+        if !RE.is_match(input) {
+            return None;
+        }
+
+        self.tz
+            .datetime_from_str(input, "%d/%m/%y %H:%M:%S")
+            .or_else(|_| self.tz.datetime_from_str(input, "%d/%m/%y %H:%M"))
+            .or_else(|_| self.tz.datetime_from_str(input, "%d/%m/%y %H:%M:%S%.f"))
+            .or_else(|_| self.tz.datetime_from_str(input, "%d/%m/%y %I:%M:%S %P"))
+            .or_else(|_| self.tz.datetime_from_str(input, "%d/%m/%y %I:%M %P"))
+            .or_else(|_| self.tz.datetime_from_str(input, "%d/%m/%Y %H:%M:%S"))
+            .or_else(|_| self.tz.datetime_from_str(input, "%d/%m/%Y %H:%M"))
+            .or_else(|_| self.tz.datetime_from_str(input, "%d/%m/%Y %H:%M:%S%.f"))
+            .or_else(|_| self.tz.datetime_from_str(input, "%d/%m/%Y %I:%M:%S %P"))
+            .or_else(|_| self.tz.datetime_from_str(input, "%d/%m/%Y %I:%M %P"))
+            .ok()
+            .map(|at_tz| at_tz.with_timezone(&Utc))
+            .map(Ok)
+    }
+
+    // dd/mm/yyyy
+    // - 31/3/2014
+    // - 31/03/2014
+    // - 21/08/71
+    // - 1/8/71
+    fn slash_dmy(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
+        lazy_static! {
+            static ref RE: Regex = Regex::new(r"^[0-9]{1,2}/[0-9]{1,2}/[0-9]{2,4}$").unwrap();
+        }
+        if !RE.is_match(input) {
+            return None;
+        }
+
+        // set time to use
+        let time = match self.default_time {
+            Some(v) => v,
+            None => Utc::now().with_timezone(self.tz).time(),
+        };
+
+        NaiveDate::parse_from_str(input, "%d/%m/%y")
+            .or_else(|_| NaiveDate::parse_from_str(input, "%d/%m/%Y"))
+            .ok()
+            .map(|parsed| parsed.and_time(time))
+            .and_then(|datetime| self.tz.from_local_datetime(&datetime).single())
+            .map(|at_tz| at_tz.with_timezone(&Utc))
+            .map(Ok)
+    }
+
+    // dd-mm-yyyy
+    // - 31-3-2014
+    // - 03-3-2014
+    // - 21-08-71
+    // - 1-8-71
+    fn hyphen_dmy(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
+        lazy_static! {
+            static ref RE: Regex = Regex::new(r"^[0-9]{1,2}-[0-9]{1,2}-[0-9]{2,4}$").unwrap();
+        }
+        if !RE.is_match(input) {
+            return None;
+        }
+
+        // set time to use
+        let time = match self.default_time {
+            Some(v) => v,
+            None => Utc::now().with_timezone(self.tz).time(),
+        };
+
+        NaiveDate::parse_from_str(input, "%d-%m-%y")
+            .or_else(|_| NaiveDate::parse_from_str(input, "%d-%m-%Y"))
+            .ok()
+            .map(|parsed| parsed.and_time(time))
+            .and_then(|datetime| self.tz.from_local_datetime(&datetime).single())
+            .map(|at_tz| at_tz.with_timezone(&Utc))
+            .map(Ok)
+    }
+
+    // mm-dd-yyyy hh:mm:ss
+    // - 4-8-2014 22:05
+    // - 04-08-2014 22:05
+    // - 4-8-14 22:05
+    // - 04-2-2014 03:00:51
+    // - 8-8-1965 12:00:00 AM
+    // - 8-8-1965 01:00:01 PM
+    // - 8-8-1965 01:00 PM
+    // - 8-8-1965 1:00 PM
+    // - 8-8-1965 12:00 AM
+    // - 4-02-2014 03:00:51
+    // - 03-19-2012 10:11:59
+    // - 03-19-2012 10:11:59.3186369
+    fn hyphen_dmy_hms(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
+        lazy_static! {
+            static ref RE: Regex = Regex::new(
+                r"^[0-9]{1,2}-[0-9]{1,2}-[0-9]{2,4}\s+[0-9]{1,2}:[0-9]{2}(:[0-9]{2})?(\.[0-9]{1,9})?\s*(am|pm|AM|PM)?$"
+            )
+            .unwrap();
+        }
+        if !RE.is_match(input) {
+            return None;
+        }
+
+        self.tz
+            .datetime_from_str(input, "%d-%m-%y %H:%M:%S")
+            .or_else(|_| self.tz.datetime_from_str(input, "%d-%m-%y %H:%M"))
+            .or_else(|_| self.tz.datetime_from_str(input, "%d-%m-%y %H:%M:%S%.f"))
+            .or_else(|_| self.tz.datetime_from_str(input, "%d-%m-%y %I:%M:%S %P"))
+            .or_else(|_| self.tz.datetime_from_str(input, "%d-%m-%y %I:%M %P"))
+            .or_else(|_| self.tz.datetime_from_str(input, "%d-%m-%Y %H:%M:%S"))
+            .or_else(|_| self.tz.datetime_from_str(input, "%d-%m-%Y %H:%M"))
+            .or_else(|_| self.tz.datetime_from_str(input, "%d-%m-%Y %H:%M:%S%.f"))
+            .or_else(|_| self.tz.datetime_from_str(input, "%d-%m-%Y %I:%M:%S %P"))
+            .or_else(|_| self.tz.datetime_from_str(input, "%d-%m-%Y %I:%M %P"))
             .ok()
             .map(|at_tz| at_tz.with_timezone(&Utc))
             .map(Ok)
@@ -1625,6 +1788,152 @@ mod tests {
         assert!(parse.hyphen_mdy_hms("not-date-time").is_none());
     }
 
+    #[test]
+    fn slash_dmy_hms() {
+        let parse = Parse::new(&Utc, None);
+
+        let test_cases = vec![
+            ("4/8/2014 22:05", Utc.ymd(2014, 8, 4).and_hms(22, 5, 0)),
+            ("04/08/2014 22:05", Utc.ymd(2014, 8, 4).and_hms(22, 5, 0)),
+            ("4/8/14 22:05", Utc.ymd(2014, 8, 4).and_hms(22, 5, 0)),
+            ("04/2/2014 03:00:51", Utc.ymd(2014, 2, 4).and_hms(3, 0, 51)),
+            ("8/8/1965 12:00:00 AM", Utc.ymd(1965, 8, 8).and_hms(0, 0, 0)),
+            (
+                "8/8/1965 01:00:01 PM",
+                Utc.ymd(1965, 8, 8).and_hms(13, 0, 1),
+            ),
+            ("8/8/1965 01:00 PM", Utc.ymd(1965, 8, 8).and_hms(13, 0, 0)),
+            ("8/8/1965 1:00 PM", Utc.ymd(1965, 8, 8).and_hms(13, 0, 0)),
+            ("8/8/1965 12:00 AM", Utc.ymd(1965, 8, 8).and_hms(0, 0, 0)),
+            ("4/02/2014 03:00:51", Utc.ymd(2014, 2, 4).and_hms(3, 0, 51)),
+            (
+                "19/03/2012 10:11:59",
+                Utc.ymd(2012, 3, 19).and_hms(10, 11, 59),
+            ),
+            (
+                "19/03/2012 10:11:59.3186369",
+                Utc.ymd(2012, 3, 19).and_hms_nano(10, 11, 59, 318636900),
+            ),
+        ];
+
+        for &(input, want) in test_cases.iter() {
+            print!("{}", input);
+            assert_eq!(
+                parse.slash_dmy_hms(input).unwrap().unwrap(),
+                want,
+                "slash_dmy_hms/{}",
+                input
+            )
+        }
+        assert!(parse.slash_dmy_hms("not-date-time").is_none());
+    }
+
+    #[test]
+    fn slash_dmy() {
+        let parse = Parse::new(&Utc, None);
+
+        let test_cases = [
+            (
+                "31/3/2014",
+                Utc.ymd(2014, 3, 31).and_time(Utc::now().time()),
+            ),
+            (
+                "31/3/2014",
+                Utc.ymd(2014, 3, 31).and_time(Utc::now().time()),
+            ),
+            ("21/08/71", Utc.ymd(1971, 8, 21).and_time(Utc::now().time())),
+            ("1/8/71", Utc.ymd(1971, 8, 1).and_time(Utc::now().time())),
+        ];
+
+        for &(input, want) in test_cases.iter() {
+            assert_eq!(
+                parse
+                    .slash_dmy(input)
+                    .unwrap()
+                    .unwrap()
+                    .trunc_subsecs(0)
+                    .with_second(0)
+                    .unwrap(),
+                want.unwrap().trunc_subsecs(0).with_second(0).unwrap(),
+                "slash_dmy/{}",
+                input
+            )
+        }
+        assert!(parse.slash_dmy("not-date-time").is_none());
+    }
+
+    #[test]
+    fn hyphen_dmy() {
+        let parse = Parse::new(&Utc, None);
+
+        let test_cases = [
+            (
+                "31-3-2014",
+                Utc.ymd(2014, 3, 31).and_time(Utc::now().time()),
+            ),
+            (
+                "31-3-2014",
+                Utc.ymd(2014, 3, 31).and_time(Utc::now().time()),
+            ),
+            ("21-08-71", Utc.ymd(1971, 8, 21).and_time(Utc::now().time())),
+            ("1-8-71", Utc.ymd(1971, 8, 1).and_time(Utc::now().time())),
+        ];
+
+        for &(input, want) in test_cases.iter() {
+            assert_eq!(
+                parse
+                    .hyphen_dmy(input)
+                    .unwrap()
+                    .unwrap()
+                    .trunc_subsecs(0)
+                    .with_second(0)
+                    .unwrap(),
+                want.unwrap().trunc_subsecs(0).with_second(0).unwrap(),
+                "hyphen_dmy/{}",
+                input
+            )
+        }
+        assert!(parse.hyphen_dmy("not-date-time").is_none());
+    }
+
+    #[test]
+    fn hyphen_dmy_hms() {
+        let parse = Parse::new(&Utc, None);
+
+        let test_cases = vec![
+            ("8-4-2014 22:05", Utc.ymd(2014, 4, 8).and_hms(22, 5, 0)),
+            ("08-04-2014 22:05", Utc.ymd(2014, 4, 8).and_hms(22, 5, 0)),
+            ("8-4-14 22:05", Utc.ymd(2014, 4, 8).and_hms(22, 5, 0)),
+            ("2-04-2014 03:00:51", Utc.ymd(2014, 4, 2).and_hms(3, 0, 51)),
+            ("8-8-1965 12:00:00 AM", Utc.ymd(1965, 8, 8).and_hms(0, 0, 0)),
+            (
+                "8-8-1965 01:00:01 PM",
+                Utc.ymd(1965, 8, 8).and_hms(13, 0, 1),
+            ),
+            ("8-8-1965 01:00 PM", Utc.ymd(1965, 8, 8).and_hms(13, 0, 0)),
+            ("8-8-1965 1:00 PM", Utc.ymd(1965, 8, 8).and_hms(13, 0, 0)),
+            ("8-8-1965 12:00 AM", Utc.ymd(1965, 8, 8).and_hms(0, 0, 0)),
+            ("2-04-2014 03:00:51", Utc.ymd(2014, 4, 2).and_hms(3, 0, 51)),
+            (
+                "19-03-2012 10:11:59",
+                Utc.ymd(2012, 3, 19).and_hms(10, 11, 59),
+            ),
+            (
+                "19-03-2012 10:11:59.3186369",
+                Utc.ymd(2012, 3, 19).and_hms_nano(10, 11, 59, 318636900),
+            ),
+        ];
+
+        for &(input, want) in test_cases.iter() {
+            assert_eq!(
+                parse.hyphen_dmy_hms(input).unwrap().unwrap(),
+                want,
+                "hyphen_dmy_hms/{}",
+                input
+            )
+        }
+        assert!(parse.hyphen_dmy_hms("not-date-time").is_none());
+    }
 
     #[test]
     fn slash_ymd_hms() {
