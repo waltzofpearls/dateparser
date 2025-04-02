@@ -37,8 +37,8 @@ where
             // meaning 1/3 will parsed as January 3rd
             // instead of March 1st.
             .or_else(|| self.slash_dmy_family(input))
-            .or_else(|| self.hyphen_dmy_mon(input))
             .or_else(|| self.hyphen_dmy_family(input))
+            .or_else(|| self.hyphen_dmy_mon(input))
             .or_else(|| self.slash_ymd_family(input))
             .or_else(|| self.dot_mdy_or_ymd(input))
             .or_else(|| self.mysql_log_timestamp(input))
@@ -1815,6 +1815,33 @@ mod tests {
             )
         }
         assert!(parse.hyphen_mdy_hms("not-date-time").is_none());
+    }
+
+    #[test]
+    fn hyphen_dmy_mon() {
+        let parse = Parse::new(&Utc, None);
+
+        let test_cases = [
+            ("2-May-06", Utc.ymd(2006, 5, 2).and_hms(0, 0, 0)),
+            ("02-May-06", Utc.ymd(2006, 5, 2).and_hms(0, 0, 0)),
+            ("2-May-2006", Utc.ymd(2006, 5, 2).and_hms(0, 0, 0)),
+            ("02-May-2006", Utc.ymd(2006, 5, 2).and_hms(0, 0, 0)),
+            ("31-Dec-99", Utc.ymd(1999, 12, 31).and_hms(0, 0, 0)),
+            ("1-Jan-2023", Utc.ymd(2023, 1, 1).and_hms(0, 0, 0)),
+        ];
+
+        for &(input, want) in test_cases.iter() {
+            assert_eq!(
+                parse.hyphen_dmy_mon(input).unwrap().unwrap(),
+                want,
+                "hyphen_dmy_mon/{}",
+                input
+            )
+        }
+        assert!(parse.hyphen_dmy_mon("2-May").is_none());
+        assert!(parse.hyphen_dmy_mon("not-a-date").is_none());
+        assert!(parse.hyphen_dmy_mon("2/May/06").is_none());
+        assert!(parse.hyphen_dmy_mon("May-2-06").is_none());
     }
 
     #[test]
