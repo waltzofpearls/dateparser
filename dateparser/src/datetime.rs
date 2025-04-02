@@ -37,6 +37,7 @@ where
             // meaning 1/3 will parsed as January 3rd
             // instead of March 1st.
             .or_else(|| self.slash_dmy_family(input))
+            .or_else(|| self.hyphen_dmy_mon(input))
             .or_else(|| self.hyphen_dmy_family(input))
             .or_else(|| self.slash_ymd_family(input))
             .or_else(|| self.dot_mdy_or_ymd(input))
@@ -1029,6 +1030,34 @@ where
         };
 
         NaiveDate::parse_from_str(input, "%Y年%m月%d日")
+            .ok()
+            .map(|parsed| parsed.and_time(time))
+            .and_then(|datetime| self.tz.from_local_datetime(&datetime).single())
+            .map(|at_tz| at_tz.with_timezone(&Utc))
+            .map(Ok)
+    }
+
+    // dd-Mon-yy
+    // - 2-May-06
+    // - 02-May-2006
+    // - 2-May-2006
+    fn hyphen_dmy_mon(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
+        lazy_static! {
+            static ref RE: Regex = 
+                Regex::new(r"^[0-9]{1,2}-[a-zA-Z]{3,9}-[0-9]{2,4}$").unwrap();
+        }
+        if !RE.is_match(input) {
+            return None;
+        }
+
+        // set time to use
+        let time = match self.default_time {
+            Some(v) => v,
+            None => Utc::now().with_timezone(self.tz).time(),
+        };
+
+        NaiveDate::parse_from_str(input, "%d-%b-%y")
+            .or_else(|_| NaiveDate::parse_from_str(input, "%d-%b-%Y"))
             .ok()
             .map(|parsed| parsed.and_time(time))
             .and_then(|datetime| self.tz.from_local_datetime(&datetime).single())
