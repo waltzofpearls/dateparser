@@ -38,7 +38,6 @@ where
             // instead of March 1st.
             .or_else(|| self.slash_dmy_family(input))
             .or_else(|| self.hyphen_dmy_family(input))
-            .or_else(|| self.hyphen_dmy_mon(input))
             .or_else(|| self.slash_ymd_family(input))
             .or_else(|| self.dot_mdy_or_ymd(input))
             .or_else(|| self.mysql_log_timestamp(input))
@@ -133,7 +132,7 @@ where
             return None;
         }
         self.hyphen_dmy_hms(input)
-            .or_else(|| self.hyphen_dmy(input))
+            .or_else(|| self.hyphen_dmy(input)).or_else(|| self.hyphen_dmy_mon(input))
     }
 
     fn slash_ymd_family(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
