@@ -15,7 +15,7 @@ impl<'z, Tz2> Parse<'z, Tz2>
 where
     Tz2: TimeZone,
 {
-    /// Create a new instrance of [`Parse`] with a custom parsing timezone that handles the
+    /// Create a new instance of [`Parse`] with a custom parsing timezone that handles the
     /// datetime string without time offset.
     pub fn new(tz: &'z Tz2, default_time: Option<NaiveTime>) -> Self {
         Self { tz, default_time }
@@ -1819,21 +1819,22 @@ mod tests {
 
     #[test]
     fn hyphen_dmy_mon() {
-        let parse = Parse::new(&Utc, None);
+        let current_time = Utc::now().time();
+        let parse = Parse::new(&Utc, Some(current_time));
 
         let test_cases = [
-            ("2-May-06", Utc.ymd(2006, 5, 2).and_hms(0, 0, 0)),
-            ("02-May-06", Utc.ymd(2006, 5, 2).and_hms(0, 0, 0)),
-            ("2-May-2006", Utc.ymd(2006, 5, 2).and_hms(0, 0, 0)),
-            ("02-May-2006", Utc.ymd(2006, 5, 2).and_hms(0, 0, 0)),
-            ("31-Dec-99", Utc.ymd(1999, 12, 31).and_hms(0, 0, 0)),
-            ("1-Jan-2023", Utc.ymd(2023, 1, 1).and_hms(0, 0, 0)),
+            ("2-May-06", Utc.ymd(2006, 5, 2).and_time(current_time)),
+            ("02-May-06", Utc.ymd(2006, 5, 2).and_time(current_time)),
+            ("2-May-2006", Utc.ymd(2006, 5, 2).and_time(current_time)),
+            ("02-May-2006", Utc.ymd(2006, 5, 2).and_time(current_time)),
+            ("31-Dec-99", Utc.ymd(1999, 12, 31).and_time(current_time)),
+            ("1-Jan-2023", Utc.ymd(2023, 1, 1).and_time(current_time)),
         ];
 
         for &(input, want) in test_cases.iter() {
             assert_eq!(
                 parse.hyphen_dmy_mon(input).unwrap().unwrap(),
-                want,
+                want.unwrap(),
                 "hyphen_dmy_mon/{}",
                 input
             )
