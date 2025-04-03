@@ -121,7 +121,7 @@ where
         if !RE.is_match(input) {
             return None;
         }
-        self.slash_dmy_hms(input).or_else(|| self.slash_dmy(input))
+        self.slash_dmy_hms(input).or_else(|| self.slash_dmy(input)).or_else(|| self.slash_dmy_mon(input))
     }
 
     fn hyphen_dmy_family(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
@@ -1057,6 +1057,36 @@ where
 
         NaiveDate::parse_from_str(input, "%d-%b-%y")
             .or_else(|_| NaiveDate::parse_from_str(input, "%d-%b-%Y"))
+            .ok()
+            .map(|parsed| parsed.and_time(time))
+            .and_then(|datetime| self.tz.from_local_datetime(&datetime).single())
+            .map(|at_tz| at_tz.with_timezone(&Utc))
+            .map(Ok)
+    }
+
+    // dd/Mon/yyyy
+    // - 2/May/06
+    // - 02/May/06
+    // - 2/May/2006
+    // - 02/May/2006
+    // - 31/Dec/99
+    // - 1/Jan/2023
+    fn slash_dmy_mon(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
+        lazy_static! {
+            static ref RE: Regex = Regex::new(r"^[0-9]{1,2}/[A-Z][a-z]{2}/[0-9]{2,4}$").unwrap();
+        }
+        if !RE.is_match(input) {
+            return None;
+        }
+
+        // set time to use
+        let time = match self.default_time {
+            Some(v) => v,
+            None => Utc::now().with_timezone(self.tz).time(),
+        };
+
+        NaiveDate::parse_from_str(input, "%d/%b/%y")
+            .or_else(|_| NaiveDate::parse_from_str(input, "%d/%b/%Y"))
             .ok()
             .map(|parsed| parsed.and_time(time))
             .and_then(|datetime| self.tz.from_local_datetime(&datetime).single())
@@ -2161,5 +2191,33 @@ mod tests {
             )
         }
         assert!(parse.chinese_ymd("not-date-time").is_none());
+    }
+
+    #[test]
+    fn slash_dmy_mon() {
+        let current_time = Utc::now().time();
+        let parse = Parse::new(&Utc, Some(current_time));
+
+        let test_cases = [
+            ("2/May/06", Utc.ymd(2006, 5, 2).and_time(current_time)),
+            ("02/May/06", Utc.ymd(2006, 5, 2).and_time(current_time)),
+            ("2/May/2006", Utc.ymd(2006, 5, 2).and_time(current_time)),
+            ("02/May/2006", Utc.ymd(2006, 5, 2).and_time(current_time)),
+            ("31/Dec/99", Utc.ymd(1999, 12, 31).and_time(current_time)),
+            ("1/Jan/2023", Utc.ymd(2023, 1, 1).and_time(current_time)),
+        ];
+
+        for &(input, want) in test_cases.iter() {
+            assert_eq!(
+                parse.slash_dmy_mon(input).unwrap().unwrap(),
+                want.unwrap(),
+                "slash_dmy_mon/{}",
+                input
+            )
+        }
+        assert!(parse.slash_dmy_mon("2/May").is_none());
+        assert!(parse.slash_dmy_mon("not-a-date").is_none());
+        assert!(parse.slash_dmy_mon("2-May-06").is_none());
+        assert!(parse.slash_dmy_mon("May/2/06").is_none());
     }
 }
