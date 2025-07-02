@@ -788,7 +788,7 @@ where
     // - 2014.03
     fn dot_mdy_or_ymd(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
         lazy_static! {
-            static ref RE: Regex = Regex::new(r"[0-9]{1,4}.[0-9]{1,4}[0-9]{1,4}").unwrap();
+            static ref RE: Regex = Regex::new(r"[0-9]{1,4}.[0-9]{1,4}.[0-9]{1,4}").unwrap();
         }
         if !RE.is_match(input) {
             return None;
