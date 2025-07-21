@@ -1,6 +1,10 @@
 use anyhow::{anyhow, Result};
 use chrono::offset::FixedOffset;
 
+const ERR_OUT_OF_RANGE: &str = "input is out of range";
+const ERR_INVALID: &str = "input contains invalid characters";
+const ERR_TOO_SHORT: &str = "premature end of input";
+
 /// Tries to parse `[-+]\d\d` continued by `\d\d`. Return FixedOffset if possible.
 /// It can parse RFC 2822 legacy timezones. If offset cannot be determined, -0000 will be returned.
 ///
@@ -12,7 +16,7 @@ pub fn parse(s: &str) -> Result<FixedOffset> {
     } else {
         parse_offset_2822(s)?
     };
-    Ok(FixedOffset::east(offset))
+    FixedOffset::east_opt(offset).ok_or_else(|| anyhow!(ERR_OUT_OF_RANGE))
 }
 
 fn parse_offset_2822(s: &str) -> Result<i32> {
@@ -54,14 +58,10 @@ fn parse_offset_internal<F>(
 where
     F: FnMut(&str) -> Result<&str>,
 {
-    let err_out_of_range = "input is out of range";
-    let err_invalid = "input contains invalid characters";
-    let err_too_short = "premature end of input";
-
     let digits = |s: &str| -> Result<(u8, u8)> {
         let b = s.as_bytes();
         if b.len() < 2 {
-            Err(anyhow!(err_too_short))
+            Err(anyhow!(ERR_TOO_SHORT))
         } else {
             Ok((b[0], b[1]))
         }
@@ -69,15 +69,15 @@ where
     let negative = match s.as_bytes().first() {
         Some(&b'+') => false,
         Some(&b'-') => true,
-        Some(_) => return Err(anyhow!(err_invalid)),
-        None => return Err(anyhow!(err_too_short)),
+        Some(_) => return Err(anyhow!(ERR_INVALID)),
+        None => return Err(anyhow!(ERR_TOO_SHORT)),
     };
     s = &s[1..];
 
     // hours (00--99)
     let hours = match digits(s)? {
         (h1 @ b'0'..=b'9', h2 @ b'0'..=b'9') => i32::from((h1 - b'0') * 10 + (h2 - b'0')),
-        _ => return Err(anyhow!(err_invalid)),
+        _ => return Err(anyhow!(ERR_INVALID)),
     };
     s = &s[2..];
 
@@ -89,13 +89,13 @@ where
     let minutes = if let Ok(ds) = digits(s) {
         match ds {
             (m1 @ b'0'..=b'5', m2 @ b'0'..=b'9') => i32::from((m1 - b'0') * 10 + (m2 - b'0')),
-            (b'6'..=b'9', b'0'..=b'9') => return Err(anyhow!(err_out_of_range)),
-            _ => return Err(anyhow!(err_invalid)),
+            (b'6'..=b'9', b'0'..=b'9') => return Err(anyhow!(ERR_OUT_OF_RANGE)),
+            _ => return Err(anyhow!(ERR_INVALID)),
         }
     } else if allow_missing_minutes {
         0
     } else {
-        return Err(anyhow!(err_too_short));
+        return Err(anyhow!(ERR_TOO_SHORT));
     };
 
     let seconds = hours * 3600 + minutes * 60;
@@ -138,10 +138,34 @@ mod tests {
             ("PDT", FixedOffset::west(7 * 3600)),
             ("UTC", FixedOffset::west(0)),
             ("GMT", FixedOffset::west(0)),
+            // Seconds are ignored
+            ("+23:59:59", FixedOffset::east(86400 - 60)),
         ];
 
         for &(input, want) in test_cases.iter() {
-            assert_eq!(super::parse(input).unwrap(), want, "parse/{}", input)
+            assert_eq!(super::parse(input).unwrap(), want, "parse/{}", input);
+        }
+
+        let should_fail = [
+            ("", ERR_TOO_SHORT),
+            ("+", ERR_TOO_SHORT),
+            ("10:00", ERR_INVALID),
+            ("+24:00", ERR_OUT_OF_RANGE),
+            ("-24:00", ERR_OUT_OF_RANGE),
+            ("-99:00", ERR_OUT_OF_RANGE),
+            ("+990000000000000000:00", ERR_OUT_OF_RANGE),
+            ("-0160", ERR_OUT_OF_RANGE),
+            ("-01600", ERR_OUT_OF_RANGE),
+            ("+25", ERR_TOO_SHORT),
+            ("+255", ERR_TOO_SHORT),
+        ];
+        for &(input, error_text) in should_fail.iter() {
+            let res = super::parse(input);
+            assert!(res.is_err(), "parse/{}", input);
+            if let Err(err) = res {
+                let s = format!("{err}");
+                assert_eq!(s, error_text, "parse/{}", input);
+            }
         }
     }
 }
