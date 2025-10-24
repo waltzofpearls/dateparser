@@ -3,7 +3,68 @@ use crate::timezone;
 use anyhow::{anyhow, Result};
 use chrono::prelude::*;
 use lazy_static::lazy_static;
+
+trait RegexEx {
+    fn with_name<R>(
+        &self,
+        input: &str,
+        name: &'static str,
+        then: impl Fn(&str) -> Option<R>,
+    ) -> Option<R>;
+}
+
+#[cfg(not(feature = "wasm"))]
 use regex::Regex;
+#[cfg(not(feature = "wasm"))]
+impl RegexEx for Regex {
+    fn with_name<R>(
+        &self,
+        input: &str,
+        name: &'static str,
+        then: impl Fn(&str) -> Option<R>,
+    ) -> Option<R> {
+        if !self.is_match(input) {
+            return None;
+        }
+        if let Some(caps) = self.captures(input) {
+            if let Some(m) = caps.name(name) {
+                return then(m.as_str().trim());
+            }
+        }
+        None
+    }
+}
+
+#[cfg(feature = "wasm")]
+mod wasm {
+    pub struct Regex(&'static str);
+    impl Regex {
+        pub fn new(s: &'static str) -> Option<Self> {
+            Some(Self(s))
+        }
+        pub fn is_match(&self, input: &str) -> bool {
+            js_regexp::RegExp::new(self.0, js_regexp::flags!(""))
+                .is_ok_and(|mut r| r.exec(input).is_some())
+        }
+    }
+    impl super::RegexEx for Regex {
+        fn with_name<R>(
+            &self,
+            input: &str,
+            name: &'static str,
+            then: impl Fn(&str) -> Option<R>,
+        ) -> Option<R> {
+            js_regexp::RegExp::new(self.0, js_regexp::flags!(""))
+                .ok()?
+                .exec(input)?
+                .named_captures()?
+                .get(name)
+                .and_then(|s| then(s.slice.trim()))
+        }
+    }
+}
+#[cfg(feature = "wasm")]
+use wasm::*;
 
 /// Parse struct has methods implemented parsers for accepted formats.
 pub struct Parse<'z, Tz2> {
@@ -105,7 +166,8 @@ where
         if !RE.is_match(input) {
             return None;
         }
-        self.hyphen_mdy_hms(input).or_else(|| self.hyphen_mdy(input))
+        self.hyphen_mdy_hms(input)
+            .or_else(|| self.hyphen_mdy(input))
     }
 
     fn slash_ymd_family(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
@@ -247,25 +309,19 @@ where
             ).unwrap();
         }
 
-        if !RE.is_match(input) {
-            return None;
-        }
-        if let Some(caps) = RE.captures(input) {
-            if let Some(matched_tz) = caps.name("tz") {
-                let parse_from_str = NaiveDateTime::parse_from_str;
-                return match timezone::parse(matched_tz.as_str().trim()) {
-                    Ok(offset) => parse_from_str(input, "%Y-%m-%d %H:%M:%S %Z")
-                        .or_else(|_| parse_from_str(input, "%Y-%m-%d %H:%M %Z"))
-                        .or_else(|_| parse_from_str(input, "%Y-%m-%d %H:%M:%S%.f %Z"))
-                        .ok()
-                        .and_then(|parsed| offset.from_local_datetime(&parsed).single())
-                        .map(|datetime| datetime.with_timezone(&Utc))
-                        .map(Ok),
-                    Err(err) => Some(Err(err)),
-                };
+        RE.with_name(input, "tz", |matched_tz| {
+            let parse_from_str = NaiveDateTime::parse_from_str;
+            match timezone::parse(matched_tz) {
+                Ok(offset) => parse_from_str(input, "%Y-%m-%d %H:%M:%S %Z")
+                    .or_else(|_| parse_from_str(input, "%Y-%m-%d %H:%M %Z"))
+                    .or_else(|_| parse_from_str(input, "%Y-%m-%d %H:%M:%S%.f %Z"))
+                    .ok()
+                    .and_then(|parsed| offset.from_local_datetime(&parsed).single())
+                    .map(|datetime| datetime.with_timezone(&Utc))
+                    .map(Ok),
+                Err(err) => Some(Err(err)),
             }
-        }
-        None
+        })
     }
 
     // yyyy-mm-dd
@@ -302,31 +358,25 @@ where
             static ref RE: Regex =
                 Regex::new(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}(?P<tz>\s*[+-:a-zA-Z0-9]{3,6})$").unwrap();
         }
-        if !RE.is_match(input) {
-            return None;
-        }
 
-        if let Some(caps) = RE.captures(input) {
-            if let Some(matched_tz) = caps.name("tz") {
-                return match timezone::parse(matched_tz.as_str().trim()) {
-                    Ok(offset) => {
-                        // set time to use
-                        let time = match self.default_time {
-                            Some(v) => v,
-                            None => Utc::now().with_timezone(&offset).time(),
-                        };
-                        NaiveDate::parse_from_str(input, "%Y-%m-%d %Z")
-                            .ok()
-                            .map(|parsed| parsed.and_time(time))
-                            .and_then(|datetime| offset.from_local_datetime(&datetime).single())
-                            .map(|at_tz| at_tz.with_timezone(&Utc))
-                            .map(Ok)
-                    }
-                    Err(err) => Some(Err(err)),
-                };
+        RE.with_name(input, "tz", |matched_tz| {
+            match timezone::parse(matched_tz) {
+                Ok(offset) => {
+                    // set time to use
+                    let time = match self.default_time {
+                        Some(v) => v,
+                        None => Utc::now().with_timezone(&offset).time(),
+                    };
+                    NaiveDate::parse_from_str(input, "%Y-%m-%d %Z")
+                        .ok()
+                        .map(|parsed| parsed.and_time(time))
+                        .and_then(|datetime| offset.from_local_datetime(&datetime).single())
+                        .map(|at_tz| at_tz.with_timezone(&Utc))
+                        .map(Ok)
+                }
+                Err(err) => Some(Err(err)),
             }
-        }
-        None
+        })
     }
 
     // hh:mm:ss
@@ -365,30 +415,23 @@ where
             )
             .unwrap();
         }
-        if !RE.is_match(input) {
-            return None;
-        }
-
-        if let Some(caps) = RE.captures(input) {
-            if let Some(matched_tz) = caps.name("tz") {
-                return match timezone::parse(matched_tz.as_str().trim()) {
-                    Ok(offset) => {
-                        let now = Utc::now().with_timezone(&offset);
-                        NaiveTime::parse_from_str(input, "%H:%M:%S %Z")
-                            .or_else(|_| NaiveTime::parse_from_str(input, "%H:%M %Z"))
-                            .or_else(|_| NaiveTime::parse_from_str(input, "%I:%M:%S %P %Z"))
-                            .or_else(|_| NaiveTime::parse_from_str(input, "%I:%M %P %Z"))
-                            .ok()
-                            .map(|parsed| now.date().naive_local().and_time(parsed))
-                            .and_then(|datetime| offset.from_local_datetime(&datetime).single())
-                            .map(|at_tz| at_tz.with_timezone(&Utc))
-                            .map(Ok)
-                    }
-                    Err(err) => Some(Err(err)),
-                };
+        RE.with_name(input, "tz", |matched_tz| {
+            match timezone::parse(matched_tz) {
+                Ok(offset) => {
+                    let now = Utc::now().with_timezone(&offset);
+                    NaiveTime::parse_from_str(input, "%H:%M:%S %Z")
+                        .or_else(|_| NaiveTime::parse_from_str(input, "%H:%M %Z"))
+                        .or_else(|_| NaiveTime::parse_from_str(input, "%I:%M:%S %P %Z"))
+                        .or_else(|_| NaiveTime::parse_from_str(input, "%I:%M %P %Z"))
+                        .ok()
+                        .map(|parsed| now.date().naive_local().and_time(parsed))
+                        .and_then(|datetime| offset.from_local_datetime(&datetime).single())
+                        .map(|at_tz| at_tz.with_timezone(&Utc))
+                        .map(Ok)
+                }
+                Err(err) => Some(Err(err)),
             }
-        }
-        None
+        })
     }
 
     // yyyy-mon-dd
@@ -476,30 +519,24 @@ where
                 r"^[a-zA-Z]{3,9}\s+[0-9]{1,2},?\s+[0-9]{4}\s*,?(at)?\s+[0-9]{2}:[0-9]{2}(:[0-9]{2})?\s*(am|pm|AM|PM)?(?P<tz>\s+[+-:a-zA-Z0-9]{3,6})$",
             ).unwrap();
         }
-        if !RE.is_match(input) {
-            return None;
-        }
 
-        if let Some(caps) = RE.captures(input) {
-            if let Some(matched_tz) = caps.name("tz") {
-                let parse_from_str = NaiveDateTime::parse_from_str;
-                return match timezone::parse(matched_tz.as_str().trim()) {
-                    Ok(offset) => {
-                        let dt = input.replace(',', "").replace("at", "");
-                        parse_from_str(&dt, "%B %d %Y %H:%M:%S %Z")
-                            .or_else(|_| parse_from_str(&dt, "%B %d %Y %H:%M %Z"))
-                            .or_else(|_| parse_from_str(&dt, "%B %d %Y %I:%M:%S %P %Z"))
-                            .or_else(|_| parse_from_str(&dt, "%B %d %Y %I:%M %P %Z"))
-                            .ok()
-                            .and_then(|parsed| offset.from_local_datetime(&parsed).single())
-                            .map(|datetime| datetime.with_timezone(&Utc))
-                            .map(Ok)
-                    }
-                    Err(err) => Some(Err(err)),
-                };
+        RE.with_name(input, "tz", |matched_tz| {
+            let parse_from_str = NaiveDateTime::parse_from_str;
+            match timezone::parse(matched_tz) {
+                Ok(offset) => {
+                    let dt = input.replace(',', "").replace("at", "");
+                    parse_from_str(&dt, "%B %d %Y %H:%M:%S %Z")
+                        .or_else(|_| parse_from_str(&dt, "%B %d %Y %H:%M %Z"))
+                        .or_else(|_| parse_from_str(&dt, "%B %d %Y %I:%M:%S %P %Z"))
+                        .or_else(|_| parse_from_str(&dt, "%B %d %Y %I:%M %P %Z"))
+                        .ok()
+                        .and_then(|parsed| offset.from_local_datetime(&parsed).single())
+                        .map(|datetime| datetime.with_timezone(&Utc))
+                        .map(Ok)
+                }
+                Err(err) => Some(Err(err)),
             }
-        }
-        None
+        })
     }
 
     // Mon dd, yyyy
@@ -1624,7 +1661,6 @@ mod tests {
         }
         assert!(parse.hyphen_mdy_hms("not-date-time").is_none());
     }
-
 
     #[test]
     fn slash_ymd_hms() {

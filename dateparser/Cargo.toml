@@ -10,11 +10,15 @@ keywords = ["date", "time", "datetime", "parser", "parse"]
 license = "MIT"
 edition = "2021"
 
+[features]
+wasm = ["dep:js-regexp"]
+
 [dependencies]
 anyhow = "1.0.75"
 chrono = "0.4.31"
 lazy_static = "1.4.0"
 regex = "1.10.2"
+js-regexp = {version="0.2",optional=true}
 
 [dev-dependencies]
 chrono-tz = "0.8.4"
