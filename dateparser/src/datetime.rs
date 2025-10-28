@@ -2,17 +2,102 @@
 use crate::timezone;
 use anyhow::{anyhow, Result};
 use chrono::prelude::*;
-use lazy_static::lazy_static;
+
+macro_rules! new_regex {
+    ($name:ident = $regex:literal) => {
+        std::thread_local!{
+            #[cfg(not(all(feature = "wasm", target_arch = "wasm32")))]
+            static $name: ::regex::Regex
+                = regex::Regex::new($regex).unwrap();
+                #[cfg(all(feature = "wasm", target_arch = "wasm32"))]
+            static $name: std::cell::Cell<Option<::js_regexp::RegExp<'static>>>
+                = std::cell::Cell::new(Some(js_regexp::RegExp::new($regex,js_regexp::flags!("")).unwrap()));
+        }
+    }
+}
 
 trait RegexEx {
+    fn is_match(&'static self, input: &str) -> bool;
     fn with_name<R>(
-        &self,
+        &'static self,
         input: &str,
         name: &'static str,
         then: impl Fn(&str) -> Option<R>,
     ) -> Option<R>;
 }
 
+#[cfg(not(all(feature = "wasm", target_arch = "wasm32")))]
+impl RegexEx for std::thread::LocalKey<::regex::Regex> {
+    #[inline]
+    fn is_match(&'static self, input: &str) -> bool {
+        self.with(|r| r.is_match(input))
+    }
+    fn with_name<R>(
+        &'static self,
+        input: &str,
+        name: &'static str,
+        then: impl Fn(&str) -> Option<R>,
+    ) -> Option<R> {
+        self.with(|r| {
+            if !r.is_match(input) {
+                return None;
+            }
+            if let Some(caps) = r.captures(input) {
+                if let Some(m) = caps.name(name) {
+                    return then(m.as_str().trim());
+                }
+            }
+            None
+        })
+    }
+}
+
+#[cfg(all(feature = "wasm", target_arch = "wasm32"))]
+impl RegexEx for std::thread::LocalKey<std::cell::Cell<Option<::js_regexp::RegExp<'static>>>> {
+    fn is_match(&'static self, input: &str) -> bool {
+        // This could be *slightly* optimized using unsafe code
+        self.with(|r| {
+            let cell = &**r;
+            let Some(mut regex) = cell.take() else {
+                // This is all just to circumvent the problem that js_regexp::RegExp::exec takes
+                // a &mut self (even though the method doesn't actually mutate the regex itself!).
+                //
+                // Using Cell<Option<>> avoids the runtime overhead of RefCell
+                // borrow checking, since we know that the regexp is always only accessed
+                // thread_locally anyway and is never borrowed.
+                unreachable!("is_some()")
+            };
+            let res = regex.exec(input).is_some();
+            // put it back in the cell, guaranteeing it is Some()
+            cell.set(Some(regex));
+            res
+        })
+    }
+    fn with_name<R>(
+        &'static self,
+        input: &str,
+        name: &'static str,
+        then: impl Fn(&str) -> Option<R>,
+    ) -> Option<R> {
+        self.with(|r| {
+            let cell = &**r;
+            let Some(mut regex) = cell.take() else {
+                // See above
+                unreachable!("is_some()")
+            };
+            let ret = regex
+                .exec(input)?
+                .named_captures()?
+                .get(name)
+                .and_then(|s| then(s.slice.trim()));
+            // put it back in the cell, guaranteeing it is Some()
+            cell.set(Some(regex));
+            ret
+        })
+    }
+}
+
+/*
 #[cfg(not(all(feature = "wasm", target_arch = "wasm32")))]
 use regex::Regex;
 #[cfg(not(all(feature = "wasm", target_arch = "wasm32")))]
@@ -65,6 +150,7 @@ mod wasm {
 }
 #[cfg(all(feature = "wasm", target_arch = "wasm32"))]
 use wasm::*;
+ */
 
 /// Parse struct has methods implemented parsers for accepted formats.
 pub struct Parse<'z, Tz2> {
@@ -102,9 +188,7 @@ where
     }
 
     fn ymd_family(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
-        lazy_static! {
-            static ref RE: Regex = Regex::new(r"^[0-9]{4}-[0-9]{2}").unwrap();
-        }
+        new_regex!(RE = r"^[0-9]{4}-[0-9]{2}");
         if !RE.is_match(input) {
             return None;
         }
@@ -117,9 +201,7 @@ where
     }
 
     fn hms_family(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
-        lazy_static! {
-            static ref RE: Regex = Regex::new(r"^[0-9]{1,2}:[0-9]{2}").unwrap();
-        }
+        new_regex!(RE = r"^[0-9]{1,2}:[0-9]{2}");
         if !RE.is_match(input) {
             return None;
         }
@@ -127,9 +209,7 @@ where
     }
 
     fn month_mdy_family(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
-        lazy_static! {
-            static ref RE: Regex = Regex::new(r"^[a-zA-Z]{3,9}\.?\s+[0-9]{1,2}").unwrap();
-        }
+        new_regex!(RE = r"^[a-zA-Z]{3,9}\.?\s+[0-9]{1,2}");
         if !RE.is_match(input) {
             return None;
         }
@@ -140,9 +220,7 @@ where
     }
 
     fn month_dmy_family(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
-        lazy_static! {
-            static ref RE: Regex = Regex::new(r"^[0-9]{1,2}\s+[a-zA-Z]{3,9}").unwrap();
-        }
+        new_regex!(RE = r"^[0-9]{1,2}\s+[a-zA-Z]{3,9}");
         if !RE.is_match(input) {
             return None;
         }
@@ -150,9 +228,7 @@ where
     }
 
     fn slash_mdy_family(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
-        lazy_static! {
-            static ref RE: Regex = Regex::new(r"^[0-9]{1,2}/[0-9]{1,2}").unwrap();
-        }
+        new_regex!(RE = r"^[0-9]{1,2}/[0-9]{1,2}");
         if !RE.is_match(input) {
             return None;
         }
@@ -160,9 +236,7 @@ where
     }
 
     fn hyphen_mdy_family(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
-        lazy_static! {
-            static ref RE: Regex = Regex::new(r"^[0-9]{1,2}-[0-9]{1,2}").unwrap();
-        }
+        new_regex!(RE = r"^[0-9]{1,2}-[0-9]{1,2}");
         if !RE.is_match(input) {
             return None;
         }
@@ -171,9 +245,7 @@ where
     }
 
     fn slash_ymd_family(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
-        lazy_static! {
-            static ref RE: Regex = Regex::new(r"^[0-9]{4}/[0-9]{1,2}").unwrap();
-        }
+        new_regex!(RE = r"^[0-9]{4}/[0-9]{1,2}");
         if !RE.is_match(input) {
             return None;
         }
@@ -181,9 +253,7 @@ where
     }
 
     fn chinese_ymd_family(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
-        lazy_static! {
-            static ref RE: Regex = Regex::new(r"^[0-9]{4}年[0-9]{2}月").unwrap();
-        }
+        new_regex!(RE = r"^[0-9]{4}年[0-9]{2}月");
         if !RE.is_match(input) {
             return None;
         }
@@ -196,9 +266,7 @@ where
     // - 1620021848429
     // - 1620024872717915000
     fn unix_timestamp(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
-        lazy_static! {
-            static ref RE: Regex = Regex::new(r"^[0-9]{10,19}$").unwrap();
-        }
+        new_regex!(RE = r"^[0-9]{10,19}$");
         if !RE.is_match(input) {
             return None;
         }
@@ -245,12 +313,9 @@ where
     // - 2019-11-29 08:15:47.624504-08
     // - 2017-07-19 03:21:51+00:00
     fn postgres_timestamp(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
-        lazy_static! {
-            static ref RE: Regex = Regex::new(
-                r"^[0-9]{4}-[0-9]{2}-[0-9]{2}\s+[0-9]{2}:[0-9]{2}(:[0-9]{2})?(\.[0-9]{1,9})?[+-:0-9]{3,6}$",
-            )
-            .unwrap();
-        }
+        new_regex!(
+            RE = r"^[0-9]{4}-[0-9]{2}-[0-9]{2}\s+[0-9]{2}:[0-9]{2}(:[0-9]{2})?(\.[0-9]{1,9})?[+-:0-9]{3,6}$"
+        );
         if !RE.is_match(input) {
             return None;
         }
@@ -272,12 +337,9 @@ where
     // - 2014-04-26 17:24:37.3186369
     // - 2012-08-03 18:31:59.257000000
     fn ymd_hms(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
-        lazy_static! {
-            static ref RE: Regex = Regex::new(
-                r"^[0-9]{4}-[0-9]{2}-[0-9]{2}\s+[0-9]{2}:[0-9]{2}(:[0-9]{2})?(\.[0-9]{1,9})?\s*(am|pm|AM|PM)?$",
-            )
-            .unwrap();
-        }
+        new_regex!(
+            RE = r"^[0-9]{4}-[0-9]{2}-[0-9]{2}\s+[0-9]{2}:[0-9]{2}(:[0-9]{2})?(\.[0-9]{1,9})?\s*(am|pm|AM|PM)?$"
+        );
         if !RE.is_match(input) {
             return None;
         }
@@ -303,11 +365,9 @@ where
     // - 2012-08-03 18:31:59.257000000 +0000
     // - 2015-09-30 18:48:56.35272715 UTC
     fn ymd_hms_z(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
-        lazy_static! {
-            static ref RE: Regex = Regex::new(
-                r"^[0-9]{4}-[0-9]{2}-[0-9]{2}\s+[0-9]{2}:[0-9]{2}(:[0-9]{2})?(\.[0-9]{1,9})?(?P<tz>\s*[+-:a-zA-Z0-9]{3,6})$",
-            ).unwrap();
-        }
+        new_regex!(
+            RE = r"^[0-9]{4}-[0-9]{2}-[0-9]{2}\s+[0-9]{2}:[0-9]{2}(:[0-9]{2})?(\.[0-9]{1,9})?(?P<tz>\s*[+-:a-zA-Z0-9]{3,6})$"
+        );
 
         RE.with_name(input, "tz", |matched_tz| {
             let parse_from_str = NaiveDateTime::parse_from_str;
@@ -327,9 +387,7 @@ where
     // yyyy-mm-dd
     // - 2021-02-21
     fn ymd(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
-        lazy_static! {
-            static ref RE: Regex = Regex::new(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$").unwrap();
-        }
+        new_regex!(RE = r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$");
 
         if !RE.is_match(input) {
             return None;
@@ -354,10 +412,7 @@ where
     // - 2021-02-21 UTC
     // - 2020-07-20+08:00 (yyyy-mm-dd-07:00)
     fn ymd_z(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
-        lazy_static! {
-            static ref RE: Regex =
-                Regex::new(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}(?P<tz>\s*[+-:a-zA-Z0-9]{3,6})$").unwrap();
-        }
+        new_regex!(RE = r"^[0-9]{4}-[0-9]{2}-[0-9]{2}(?P<tz>\s*[+-:a-zA-Z0-9]{3,6})$");
 
         RE.with_name(input, "tz", |matched_tz| {
             match timezone::parse(matched_tz) {
@@ -384,10 +439,7 @@ where
     // - 4:00pm
     // - 6:00 AM
     fn hms(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
-        lazy_static! {
-            static ref RE: Regex =
-                Regex::new(r"^[0-9]{1,2}:[0-9]{2}(:[0-9]{2})?\s*(am|pm|AM|PM)?$").unwrap();
-        }
+        new_regex!(RE = r"^[0-9]{1,2}:[0-9]{2}(:[0-9]{2})?\s*(am|pm|AM|PM)?$");
         if !RE.is_match(input) {
             return None;
         }
@@ -409,12 +461,10 @@ where
     // - 6:00 AM PST
     // - 6:00pm UTC
     fn hms_z(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
-        lazy_static! {
-            static ref RE: Regex = Regex::new(
-                r"^[0-9]{1,2}:[0-9]{2}(:[0-9]{2})?\s*(am|pm|AM|PM)?(?P<tz>\s+[+-:a-zA-Z0-9]{3,6})$",
-            )
-            .unwrap();
-        }
+        new_regex!(
+            RE =
+                r"^[0-9]{1,2}:[0-9]{2}(:[0-9]{2})?\s*(am|pm|AM|PM)?(?P<tz>\s+[+-:a-zA-Z0-9]{3,6})$"
+        );
         RE.with_name(input, "tz", |matched_tz| {
             match timezone::parse(matched_tz) {
                 Ok(offset) => {
@@ -437,9 +487,7 @@ where
     // yyyy-mon-dd
     // - 2021-Feb-21
     fn month_ymd(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
-        lazy_static! {
-            static ref RE: Regex = Regex::new(r"^[0-9]{4}-[a-zA-Z]{3,9}-[0-9]{2}$").unwrap();
-        }
+        new_regex!(RE = r"^[0-9]{4}-[a-zA-Z]{3,9}-[0-9]{2}$");
         if !RE.is_match(input) {
             return None;
         }
@@ -463,12 +511,9 @@ where
     // - May 6 at 9:24 PM
     // - May 27 02:45:27
     fn month_md_hms(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
-        lazy_static! {
-            static ref RE: Regex = Regex::new(
-                r"^[a-zA-Z]{3}\s+[0-9]{1,2}\s*(at)?\s+[0-9]{1,2}:[0-9]{2}(:[0-9]{2})?\s*(am|pm|AM|PM)?$",
-            )
-            .unwrap();
-        }
+        new_regex!(
+            RE = r"^[a-zA-Z]{3}\s+[0-9]{1,2}\s*(at)?\s+[0-9]{1,2}:[0-9]{2}(:[0-9]{2})?\s*(am|pm|AM|PM)?$"
+        );
         if !RE.is_match(input) {
             return None;
         }
@@ -488,11 +533,9 @@ where
     // - September 17, 2012 10:09am
     // - September 17, 2012, 10:10:09
     fn month_mdy_hms(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
-        lazy_static! {
-            static ref RE: Regex = Regex::new(
-                r"^[a-zA-Z]{3,9}\.?\s+[0-9]{1,2},\s+[0-9]{2,4},?\s+[0-9]{1,2}:[0-9]{2}(:[0-9]{2})?\s*(am|pm|AM|PM)?$",
-            ).unwrap();
-        }
+        new_regex!(
+            RE = r"^[a-zA-Z]{3,9}\.?\s+[0-9]{1,2},\s+[0-9]{2,4},?\s+[0-9]{1,2}:[0-9]{2}(:[0-9]{2})?\s*(am|pm|AM|PM)?$"
+        );
         if !RE.is_match(input) {
             return None;
         }
@@ -514,11 +557,9 @@ where
     // - May 26, 2021, 12:49 AM PDT
     // - September 17, 2012 at 10:09am PST
     fn month_mdy_hms_z(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
-        lazy_static! {
-            static ref RE: Regex = Regex::new(
-                r"^[a-zA-Z]{3,9}\s+[0-9]{1,2},?\s+[0-9]{4}\s*,?(at)?\s+[0-9]{2}:[0-9]{2}(:[0-9]{2})?\s*(am|pm|AM|PM)?(?P<tz>\s+[+-:a-zA-Z0-9]{3,6})$",
-            ).unwrap();
-        }
+        new_regex!(
+            RE = r"^[a-zA-Z]{3,9}\s+[0-9]{1,2},?\s+[0-9]{4}\s*,?(at)?\s+[0-9]{2}:[0-9]{2}(:[0-9]{2})?\s*(am|pm|AM|PM)?(?P<tz>\s+[+-:a-zA-Z0-9]{3,6})$"
+        );
 
         RE.with_name(input, "tz", |matched_tz| {
             let parse_from_str = NaiveDateTime::parse_from_str;
@@ -547,10 +588,7 @@ where
     // - oct. 7, 70
     // - October 7, 1970
     fn month_mdy(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
-        lazy_static! {
-            static ref RE: Regex =
-                Regex::new(r"^[a-zA-Z]{3,9}\.?\s+[0-9]{1,2},\s+[0-9]{2,4}$").unwrap();
-        }
+        new_regex!(RE = r"^[a-zA-Z]{3,9}\.?\s+[0-9]{1,2},\s+[0-9]{2,4}$");
         if !RE.is_match(input) {
             return None;
         }
@@ -576,11 +614,9 @@ where
     // - 12 Feb 2006 19:17
     // - 14 May 2019 19:11:40.164
     fn month_dmy_hms(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
-        lazy_static! {
-            static ref RE: Regex = Regex::new(
-                r"^[0-9]{1,2}\s+[a-zA-Z]{3,9}\s+[0-9]{2,4},?\s+[0-9]{1,2}:[0-9]{2}(:[0-9]{2})?(\.[0-9]{1,9})?$",
-            ).unwrap();
-        }
+        new_regex!(
+            RE = r"^[0-9]{1,2}\s+[a-zA-Z]{3,9}\s+[0-9]{2,4},?\s+[0-9]{1,2}:[0-9]{2}(:[0-9]{2})?(\.[0-9]{1,9})?$"
+        );
         if !RE.is_match(input) {
             return None;
         }
@@ -603,10 +639,7 @@ where
     // - 03 February 2013
     // - 1 July 2013
     fn month_dmy(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
-        lazy_static! {
-            static ref RE: Regex =
-                Regex::new(r"^[0-9]{1,2}\s+[a-zA-Z]{3,9}\s+[0-9]{2,4}$").unwrap();
-        }
+        new_regex!(RE = r"^[0-9]{1,2}\s+[a-zA-Z]{3,9}\s+[0-9]{2,4}$");
         if !RE.is_match(input) {
             return None;
         }
@@ -640,12 +673,9 @@ where
     // - 03/19/2012 10:11:59
     // - 03/19/2012 10:11:59.3186369
     fn slash_mdy_hms(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
-        lazy_static! {
-            static ref RE: Regex = Regex::new(
-                r"^[0-9]{1,2}/[0-9]{1,2}/[0-9]{2,4}\s+[0-9]{1,2}:[0-9]{2}(:[0-9]{2})?(\.[0-9]{1,9})?\s*(am|pm|AM|PM)?$"
-            )
-            .unwrap();
-        }
+        new_regex!(
+            RE = r"^[0-9]{1,2}/[0-9]{1,2}/[0-9]{2,4}\s+[0-9]{1,2}:[0-9]{2}(:[0-9]{2})?(\.[0-9]{1,9})?\s*(am|pm|AM|PM)?$"
+        );
         if !RE.is_match(input) {
             return None;
         }
@@ -672,9 +702,7 @@ where
     // - 08/21/71
     // - 8/1/71
     fn slash_mdy(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
-        lazy_static! {
-            static ref RE: Regex = Regex::new(r"^[0-9]{1,2}/[0-9]{1,2}/[0-9]{2,4}$").unwrap();
-        }
+        new_regex!(RE = r"^[0-9]{1,2}/[0-9]{1,2}/[0-9]{2,4}$");
         if !RE.is_match(input) {
             return None;
         }
@@ -702,12 +730,9 @@ where
     // - 2012/03/19 10:11:59
     // - 2012/03/19 10:11:59.3186369
     fn slash_ymd_hms(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
-        lazy_static! {
-            static ref RE: Regex = Regex::new(
-                r"^[0-9]{4}/[0-9]{1,2}/[0-9]{1,2}\s+[0-9]{1,2}:[0-9]{2}(:[0-9]{2})?(\.[0-9]{1,9})?\s*(am|pm|AM|PM)?$"
-            )
-            .unwrap();
-        }
+        new_regex!(
+            RE = r"^[0-9]{4}/[0-9]{1,2}/[0-9]{1,2}\s+[0-9]{1,2}:[0-9]{2}(:[0-9]{2})?(\.[0-9]{1,9})?\s*(am|pm|AM|PM)?$"
+        );
         if !RE.is_match(input) {
             return None;
         }
@@ -727,9 +752,7 @@ where
     // - 2014/3/31
     // - 2014/03/31
     fn slash_ymd(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
-        lazy_static! {
-            static ref RE: Regex = Regex::new(r"^[0-9]{4}/[0-9]{1,2}/[0-9]{1,2}$").unwrap();
-        }
+        new_regex!(RE = r"^[0-9]{4}/[0-9]{1,2}/[0-9]{1,2}$");
         if !RE.is_match(input) {
             return None;
         }
@@ -754,9 +777,7 @@ where
     // - 08-21-71
     // - 8-1-71
     fn hyphen_mdy(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
-        lazy_static! {
-            static ref RE: Regex = Regex::new(r"^[0-9]{1,2}-[0-9]{1,2}-[0-9]{2,4}$").unwrap();
-        }
+        new_regex!(RE = r"^[0-9]{1,2}-[0-9]{1,2}-[0-9]{2,4}$");
         if !RE.is_match(input) {
             return None;
         }
@@ -790,12 +811,9 @@ where
     // - 03-19-2012 10:11:59
     // - 03-19-2012 10:11:59.3186369
     fn hyphen_mdy_hms(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
-        lazy_static! {
-            static ref RE: Regex = Regex::new(
-                r"^[0-9]{1,2}-[0-9]{1,2}-[0-9]{2,4}\s+[0-9]{1,2}:[0-9]{2}(:[0-9]{2})?(\.[0-9]{1,9})?\s*(am|pm|AM|PM)?$"
-            )
-            .unwrap();
-        }
+        new_regex!(
+            RE = r"^[0-9]{1,2}-[0-9]{1,2}-[0-9]{2,4}\s+[0-9]{1,2}:[0-9]{2}(:[0-9]{2})?(\.[0-9]{1,9})?\s*(am|pm|AM|PM)?$"
+        );
         if !RE.is_match(input) {
             return None;
         }
@@ -824,9 +842,7 @@ where
     // - 2014.03.30
     // - 2014.03
     fn dot_mdy_or_ymd(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
-        lazy_static! {
-            static ref RE: Regex = Regex::new(r"[0-9]{1,4}.[0-9]{1,4}[0-9]{1,4}").unwrap();
-        }
+        new_regex!(RE = r"[0-9]{1,4}.[0-9]{1,4}[0-9]{1,4}");
         if !RE.is_match(input) {
             return None;
         }
@@ -853,9 +869,7 @@ where
     // yymmdd hh:mm:ss mysql log
     // - 171113 14:14:20
     fn mysql_log_timestamp(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
-        lazy_static! {
-            static ref RE: Regex = Regex::new(r"[0-9]{6}\s+[0-9]{2}:[0-9]{2}:[0-9]{2}").unwrap();
-        }
+        new_regex!(RE = r"[0-9]{6}\s+[0-9]{2}:[0-9]{2}:[0-9]{2}");
         if !RE.is_match(input) {
             return None;
         }
@@ -870,11 +884,7 @@ where
     // chinese yyyy mm dd hh mm ss
     // - 2014年04月08日11时25分18秒
     fn chinese_ymd_hms(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
-        lazy_static! {
-            static ref RE: Regex =
-                Regex::new(r"^[0-9]{4}年[0-9]{2}月[0-9]{2}日[0-9]{2}时[0-9]{2}分[0-9]{2}秒$")
-                    .unwrap();
-        }
+        new_regex!(RE = r"^[0-9]{4}年[0-9]{2}月[0-9]{2}日[0-9]{2}时[0-9]{2}分[0-9]{2}秒$");
         if !RE.is_match(input) {
             return None;
         }
@@ -889,9 +899,7 @@ where
     // chinese yyyy mm dd
     // - 2014年04月08日
     fn chinese_ymd(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
-        lazy_static! {
-            static ref RE: Regex = Regex::new(r"^[0-9]{4}年[0-9]{2}月[0-9]{2}日$").unwrap();
-        }
+        new_regex!(RE = r"^[0-9]{4}年[0-9]{2}月[0-9]{2}日$");
         if !RE.is_match(input) {
             return None;
         }
@@ -915,7 +923,8 @@ where
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn unix_timestamp() {
         let parse = Parse::new(&Utc, None);
 
@@ -949,7 +958,8 @@ mod tests {
         assert!(parse.unix_timestamp("not-a-ts").is_none());
     }
 
-    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn rfc3339() {
         let parse = Parse::new(&Utc, None);
 
@@ -976,7 +986,8 @@ mod tests {
         assert!(parse.rfc3339("not-date-time").is_none());
     }
 
-    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn rfc2822() {
         let parse = Parse::new(&Utc, None);
 
@@ -1003,7 +1014,8 @@ mod tests {
         assert!(parse.rfc2822("not-date-time").is_none());
     }
 
-    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn postgres_timestamp() {
         let parse = Parse::new(&Utc, None);
 
@@ -1045,7 +1057,8 @@ mod tests {
         assert!(parse.postgres_timestamp("not-date-time").is_none());
     }
 
-    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn ymd_hms() {
         let parse = Parse::new(&Utc, None);
 
@@ -1088,7 +1101,8 @@ mod tests {
         assert!(parse.ymd_hms("not-date-time").is_none());
     }
 
-    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn ymd_hms_z() {
         let parse = Parse::new(&Utc, None);
 
@@ -1138,7 +1152,8 @@ mod tests {
         assert!(parse.ymd_hms_z("not-date-time").is_none());
     }
 
-    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn ymd() {
         let parse = Parse::new(&Utc, Some(Utc::now().time()));
 
@@ -1164,7 +1179,8 @@ mod tests {
         assert!(parse.ymd("not-date-time").is_none());
     }
 
-    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn ymd_z() {
         let parse = Parse::new(&Utc, None);
         let now_at_pst = Utc::now().with_timezone(&FixedOffset::west(8 * 3600));
@@ -1211,7 +1227,8 @@ mod tests {
         assert!(parse.ymd_z("not-date-time").is_none());
     }
 
-    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn hms() {
         let parse = Parse::new(&Utc, None);
 
@@ -1241,7 +1258,8 @@ mod tests {
         assert!(parse.hms("not-date-time").is_none());
     }
 
-    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn hms_z() {
         let parse = Parse::new(&Utc, None);
         let now_at_pst = Utc::now().with_timezone(&FixedOffset::west(8 * 3600));
@@ -1288,7 +1306,8 @@ mod tests {
         assert!(parse.hms_z("not-date-time").is_none());
     }
 
-    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn month_ymd() {
         let parse = Parse::new(&Utc, None);
 
@@ -1314,7 +1333,8 @@ mod tests {
         assert!(parse.month_ymd("not-date-time").is_none());
     }
 
-    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn month_md_hms() {
         let parse = Parse::new(&Utc, None);
 
@@ -1340,7 +1360,8 @@ mod tests {
         assert!(parse.month_md_hms("not-date-time").is_none());
     }
 
-    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn month_mdy_hms() {
         let parse = Parse::new(&Utc, None);
 
@@ -1370,7 +1391,8 @@ mod tests {
         assert!(parse.month_mdy_hms("not-date-time").is_none());
     }
 
-    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn month_mdy_hms_z() {
         let parse = Parse::new(&Utc, None);
 
@@ -1404,7 +1426,8 @@ mod tests {
         assert!(parse.month_mdy_hms_z("not-date-time").is_none());
     }
 
-    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn month_mdy() {
         let parse = Parse::new(&Utc, None);
 
@@ -1452,7 +1475,8 @@ mod tests {
         assert!(parse.month_mdy("not-date-time").is_none());
     }
 
-    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn month_dmy_hms() {
         let parse = Parse::new(&Utc, None);
 
@@ -1479,7 +1503,8 @@ mod tests {
         assert!(parse.month_dmy_hms("not-date-time").is_none());
     }
 
-    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn month_dmy() {
         let parse = Parse::new(&Utc, None);
 
@@ -1516,7 +1541,8 @@ mod tests {
         assert!(parse.month_dmy("not-date-time").is_none());
     }
 
-    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn slash_mdy_hms() {
         let parse = Parse::new(&Utc, None);
 
@@ -1555,7 +1581,8 @@ mod tests {
         assert!(parse.slash_mdy_hms("not-date-time").is_none());
     }
 
-    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn slash_mdy() {
         let parse = Parse::new(&Utc, None);
 
@@ -1589,7 +1616,8 @@ mod tests {
         assert!(parse.slash_mdy("not-date-time").is_none());
     }
 
-    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn hyphen_mdy() {
         let parse = Parse::new(&Utc, None);
 
@@ -1623,7 +1651,8 @@ mod tests {
         assert!(parse.hyphen_mdy("not-date-time").is_none());
     }
 
-    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn hyphen_mdy_hms() {
         let parse = Parse::new(&Utc, None);
 
@@ -1662,7 +1691,8 @@ mod tests {
         assert!(parse.hyphen_mdy_hms("not-date-time").is_none());
     }
 
-    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn slash_ymd_hms() {
         let parse = Parse::new(&Utc, None);
 
@@ -1692,7 +1722,8 @@ mod tests {
         assert!(parse.slash_ymd_hms("not-date-time").is_none());
     }
 
-    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn slash_ymd() {
         let parse = Parse::new(&Utc, Some(Utc::now().time()));
 
@@ -1724,7 +1755,8 @@ mod tests {
         assert!(parse.slash_ymd("not-date-time").is_none());
     }
 
-    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn dot_mdy_or_ymd() {
         let parse = Parse::new(&Utc, Some(Utc::now().time()));
 
@@ -1768,7 +1800,8 @@ mod tests {
         assert!(parse.dot_mdy_or_ymd("not-date-time").is_none());
     }
 
-    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn mysql_log_timestamp() {
         let parse = Parse::new(&Utc, None);
 
@@ -1788,7 +1821,8 @@ mod tests {
         assert!(parse.mysql_log_timestamp("not-date-time").is_none());
     }
 
-    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn chinese_ymd_hms() {
         let parse = Parse::new(&Utc, None);
 
@@ -1808,7 +1842,8 @@ mod tests {
         assert!(parse.chinese_ymd_hms("not-date-time").is_none());
     }
 
-    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn chinese_ymd() {
         let parse = Parse::new(&Utc, Some(Utc::now().time()));
 
