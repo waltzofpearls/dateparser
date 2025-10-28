@@ -45,7 +45,6 @@ impl RegexEx for std::thread::LocalKey<::regex::Regex> {
 #[cfg(all(feature = "wasm", target_arch = "wasm32"))]
 impl RegexEx for std::thread::LocalKey<::js_sys::RegExp> {
     fn is_match(&'static self, input: &str) -> bool {
-        // This could be *slightly* optimized using unsafe code
         self.with(|regex| regex.exec(input).is_some())
     }
     fn with_tz<R>(&'static self, input: &str, then: impl Fn(&str) -> Option<R>) -> Option<R> {
@@ -66,30 +65,6 @@ impl RegexEx for std::thread::LocalKey<::js_sys::RegExp> {
             let substr = &input[start..end].trim();
             then(substr)
         })
-        /*
-        fn run<R>(
-            regex: &mut ::js_regexp::RegExp<'static>,
-            input: &str,
-            name: &'static str,
-            then: impl Fn(&str) -> Option<R>,
-        ) -> Option<R> {
-            regex
-                .exec(input)?
-                .named_captures()?
-                .get(name)
-                .and_then(|s| then(s.slice.trim()))
-        }
-        self.with(|cell| {
-            let Some(mut regex) = cell.take() else {
-                // See above
-                unreachable!("is_some()")
-            };
-            let ret = run(&mut regex, input, name, then);
-            // put it back in the cell, guaranteeing it is Some()
-            cell.set(Some(regex));
-            ret
-        })
-         */
     }
 }
 
