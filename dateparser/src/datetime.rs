@@ -13,9 +13,9 @@ trait RegexEx {
     ) -> Option<R>;
 }
 
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(all(feature = "wasm", target_arch = "wasm32")))]
 use regex::Regex;
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(all(feature = "wasm", target_arch = "wasm32")))]
 impl RegexEx for Regex {
     fn with_name<R>(
         &self,
@@ -35,7 +35,7 @@ impl RegexEx for Regex {
     }
 }
 
-#[cfg(feature = "wasm")]
+#[cfg(all(feature = "wasm", target_arch = "wasm32"))]
 mod wasm {
     pub struct Regex(&'static str);
     impl Regex {
@@ -63,7 +63,7 @@ mod wasm {
         }
     }
 }
-#[cfg(feature = "wasm")]
+#[cfg(all(feature = "wasm", target_arch = "wasm32"))]
 use wasm::*;
 
 /// Parse struct has methods implemented parsers for accepted formats.
