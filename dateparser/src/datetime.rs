@@ -97,61 +97,6 @@ impl RegexEx for std::thread::LocalKey<std::cell::Cell<Option<::js_regexp::RegEx
     }
 }
 
-/*
-#[cfg(not(all(feature = "wasm", target_arch = "wasm32")))]
-use regex::Regex;
-#[cfg(not(all(feature = "wasm", target_arch = "wasm32")))]
-impl RegexEx for Regex {
-    fn with_name<R>(
-        &self,
-        input: &str,
-        name: &'static str,
-        then: impl Fn(&str) -> Option<R>,
-    ) -> Option<R> {
-        if !self.is_match(input) {
-            return None;
-        }
-        if let Some(caps) = self.captures(input) {
-            if let Some(m) = caps.name(name) {
-                return then(m.as_str().trim());
-            }
-        }
-        None
-    }
-}
-
-#[cfg(all(feature = "wasm", target_arch = "wasm32"))]
-mod wasm {
-    pub struct Regex(&'static str);
-    impl Regex {
-        pub fn new(s: &'static str) -> Option<Self> {
-            Some(Self(s))
-        }
-        pub fn is_match(&self, input: &str) -> bool {
-            js_regexp::RegExp::new(self.0, js_regexp::flags!(""))
-                .is_ok_and(|mut r| r.exec(input).is_some())
-        }
-    }
-    impl super::RegexEx for Regex {
-        fn with_name<R>(
-            &self,
-            input: &str,
-            name: &'static str,
-            then: impl Fn(&str) -> Option<R>,
-        ) -> Option<R> {
-            js_regexp::RegExp::new(self.0, js_regexp::flags!(""))
-                .ok()?
-                .exec(input)?
-                .named_captures()?
-                .get(name)
-                .and_then(|s| then(s.slice.trim()))
-        }
-    }
-}
-#[cfg(all(feature = "wasm", target_arch = "wasm32"))]
-use wasm::*;
- */
-
 /// Parse struct has methods implemented parsers for accepted formats.
 pub struct Parse<'z, Tz2> {
     tz: &'z Tz2,
