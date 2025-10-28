@@ -5,15 +5,15 @@ use chrono::prelude::*;
 
 macro_rules! new_regex {
     ($name:ident = $regex:literal) => {
-        std::thread_local!{
+        std::thread_local! {
             #[cfg(not(all(feature = "wasm", target_arch = "wasm32")))]
             static $name: ::regex::Regex
                 = regex::Regex::new($regex).unwrap();
                 #[cfg(all(feature = "wasm", target_arch = "wasm32"))]
-            static $name: std::cell::Cell<Option<::js_regexp::RegExp<'static>>>
-                = std::cell::Cell::new(Some(js_regexp::RegExp::new($regex,js_regexp::flags!("")).unwrap()));
+            static $name: ::js_sys::RegExp
+                = js_sys::RegExp::new($regex,"d");
         }
-    }
+    };
 }
 
 trait RegexEx {
@@ -53,25 +53,10 @@ impl RegexEx for std::thread::LocalKey<::regex::Regex> {
 }
 
 #[cfg(all(feature = "wasm", target_arch = "wasm32"))]
-impl RegexEx for std::thread::LocalKey<std::cell::Cell<Option<::js_regexp::RegExp<'static>>>> {
+impl RegexEx for std::thread::LocalKey<::js_sys::RegExp> {
     fn is_match(&'static self, input: &str) -> bool {
         // This could be *slightly* optimized using unsafe code
-        self.with(|r| {
-            let cell = &**r;
-            let Some(mut regex) = cell.take() else {
-                // This is all just to circumvent the problem that js_regexp::RegExp::exec takes
-                // a &mut self (even though the method doesn't actually mutate the regex itself!).
-                //
-                // Using Cell<Option<>> avoids the runtime overhead of RefCell
-                // borrow checking, since we know that the regexp is always only accessed
-                // thread_locally anyway and is never borrowed.
-                unreachable!("is_some()")
-            };
-            let res = regex.exec(input).is_some();
-            // put it back in the cell, guaranteeing it is Some()
-            cell.set(Some(regex));
-            res
-        })
+        self.with(|regex| regex.exec(input).is_some())
     }
     fn with_name<R>(
         &'static self,
@@ -79,21 +64,47 @@ impl RegexEx for std::thread::LocalKey<std::cell::Cell<Option<::js_regexp::RegEx
         name: &'static str,
         then: impl Fn(&str) -> Option<R>,
     ) -> Option<R> {
-        self.with(|r| {
-            let cell = &**r;
+        std::thread_local! {
+            static INDICES : wasm_bindgen::JsValue = wasm_bindgen::JsValue::from_str("indices");
+            static GROUPS : wasm_bindgen::JsValue = wasm_bindgen::JsValue::from_str("groups");
+            static TZ : wasm_bindgen::JsValue = wasm_bindgen::JsValue::from_str("tz");
+        }
+        self.with(|regex| {
+            let res = regex.exec(input)?;
+            let indices = INDICES.with(|idx| js_sys::Reflect::get(&res, idx)).ok()?;
+            let groups = GROUPS
+                .with(|grp| js_sys::Reflect::get(&indices, grp))
+                .ok()?;
+            let tz = TZ.with(|tz| js_sys::Reflect::get(&groups, tz)).ok()?;
+            let start = js_sys::Reflect::get_u32(&tz, 0).ok()?.as_f64()? as usize;
+            let end = js_sys::Reflect::get_u32(&tz, 1).ok()?.as_f64()? as usize;
+            let substr = &input[start..end].trim();
+            then(substr)
+        })
+        /*
+        fn run<R>(
+            regex: &mut ::js_regexp::RegExp<'static>,
+            input: &str,
+            name: &'static str,
+            then: impl Fn(&str) -> Option<R>,
+        ) -> Option<R> {
+            regex
+                .exec(input)?
+                .named_captures()?
+                .get(name)
+                .and_then(|s| then(s.slice.trim()))
+        }
+        self.with(|cell| {
             let Some(mut regex) = cell.take() else {
                 // See above
                 unreachable!("is_some()")
             };
-            let ret = regex
-                .exec(input)?
-                .named_captures()?
-                .get(name)
-                .and_then(|s| then(s.slice.trim()));
+            let ret = run(&mut regex, input, name, then);
             // put it back in the cell, guaranteeing it is Some()
             cell.set(Some(regex));
             ret
         })
+         */
     }
 }
 
@@ -311,7 +322,7 @@ where
     // - 2015-09-30 18:48:56.35272715 UTC
     fn ymd_hms_z(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
         new_regex!(
-            RE = r"^[0-9]{4}-[0-9]{2}-[0-9]{2}\s+[0-9]{2}:[0-9]{2}(:[0-9]{2})?(\.[0-9]{1,9})?(?P<tz>\s*[+-:a-zA-Z0-9]{3,6})$"
+            RE = r"^[0-9]{4}-[0-9]{2}-[0-9]{2}\s+[0-9]{2}:[0-9]{2}(:[0-9]{2})?(\.[0-9]{1,9})?(?<tz>\s*[+-:a-zA-Z0-9]{3,6})$"
         );
 
         RE.with_name(input, "tz", |matched_tz| {
@@ -357,7 +368,7 @@ where
     // - 2021-02-21 UTC
     // - 2020-07-20+08:00 (yyyy-mm-dd-07:00)
     fn ymd_z(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
-        new_regex!(RE = r"^[0-9]{4}-[0-9]{2}-[0-9]{2}(?P<tz>\s*[+-:a-zA-Z0-9]{3,6})$");
+        new_regex!(RE = r"^[0-9]{4}-[0-9]{2}-[0-9]{2}(?<tz>\s*[+-:a-zA-Z0-9]{3,6})$");
 
         RE.with_name(input, "tz", |matched_tz| {
             match timezone::parse(matched_tz) {
@@ -407,8 +418,7 @@ where
     // - 6:00pm UTC
     fn hms_z(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
         new_regex!(
-            RE =
-                r"^[0-9]{1,2}:[0-9]{2}(:[0-9]{2})?\s*(am|pm|AM|PM)?(?P<tz>\s+[+-:a-zA-Z0-9]{3,6})$"
+            RE = r"^[0-9]{1,2}:[0-9]{2}(:[0-9]{2})?\s*(am|pm|AM|PM)?(?<tz>\s+[+-:a-zA-Z0-9]{3,6})$"
         );
         RE.with_name(input, "tz", |matched_tz| {
             match timezone::parse(matched_tz) {
@@ -503,7 +513,7 @@ where
     // - September 17, 2012 at 10:09am PST
     fn month_mdy_hms_z(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
         new_regex!(
-            RE = r"^[a-zA-Z]{3,9}\s+[0-9]{1,2},?\s+[0-9]{4}\s*,?(at)?\s+[0-9]{2}:[0-9]{2}(:[0-9]{2})?\s*(am|pm|AM|PM)?(?P<tz>\s+[+-:a-zA-Z0-9]{3,6})$"
+            RE = r"^[a-zA-Z]{3,9}\s+[0-9]{1,2},?\s+[0-9]{4}\s*,?(at)?\s+[0-9]{2}:[0-9]{2}(:[0-9]{2})?\s*(am|pm|AM|PM)?(?<tz>\s+[+-:a-zA-Z0-9]{3,6})$"
         );
 
         RE.with_name(input, "tz", |matched_tz| {
