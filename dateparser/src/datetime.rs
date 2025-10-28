@@ -18,12 +18,7 @@ macro_rules! new_regex {
 
 trait RegexEx {
     fn is_match(&'static self, input: &str) -> bool;
-    fn with_name<R>(
-        &'static self,
-        input: &str,
-        name: &'static str,
-        then: impl Fn(&str) -> Option<R>,
-    ) -> Option<R>;
+    fn with_tz<R>(&'static self, input: &str, then: impl Fn(&str) -> Option<R>) -> Option<R>;
 }
 
 #[cfg(not(all(feature = "wasm", target_arch = "wasm32")))]
@@ -32,18 +27,13 @@ impl RegexEx for std::thread::LocalKey<::regex::Regex> {
     fn is_match(&'static self, input: &str) -> bool {
         self.with(|r| r.is_match(input))
     }
-    fn with_name<R>(
-        &'static self,
-        input: &str,
-        name: &'static str,
-        then: impl Fn(&str) -> Option<R>,
-    ) -> Option<R> {
+    fn with_tz<R>(&'static self, input: &str, then: impl Fn(&str) -> Option<R>) -> Option<R> {
         self.with(|r| {
             if !r.is_match(input) {
                 return None;
             }
             if let Some(caps) = r.captures(input) {
-                if let Some(m) = caps.name(name) {
+                if let Some(m) = caps.name("tz") {
                     return then(m.as_str().trim());
                 }
             }
@@ -58,12 +48,7 @@ impl RegexEx for std::thread::LocalKey<::js_sys::RegExp> {
         // This could be *slightly* optimized using unsafe code
         self.with(|regex| regex.exec(input).is_some())
     }
-    fn with_name<R>(
-        &'static self,
-        input: &str,
-        name: &'static str,
-        then: impl Fn(&str) -> Option<R>,
-    ) -> Option<R> {
+    fn with_tz<R>(&'static self, input: &str, then: impl Fn(&str) -> Option<R>) -> Option<R> {
         std::thread_local! {
             static INDICES : wasm_bindgen::JsValue = wasm_bindgen::JsValue::from_str("indices");
             static GROUPS : wasm_bindgen::JsValue = wasm_bindgen::JsValue::from_str("groups");
@@ -325,7 +310,7 @@ where
             RE = r"^[0-9]{4}-[0-9]{2}-[0-9]{2}\s+[0-9]{2}:[0-9]{2}(:[0-9]{2})?(\.[0-9]{1,9})?(?<tz>\s*[+-:a-zA-Z0-9]{3,6})$"
         );
 
-        RE.with_name(input, "tz", |matched_tz| {
+        RE.with_tz(input, |matched_tz| {
             let parse_from_str = NaiveDateTime::parse_from_str;
             match timezone::parse(matched_tz) {
                 Ok(offset) => parse_from_str(input, "%Y-%m-%d %H:%M:%S %Z")
@@ -370,7 +355,7 @@ where
     fn ymd_z(&self, input: &str) -> Option<Result<DateTime<Utc>>> {
         new_regex!(RE = r"^[0-9]{4}-[0-9]{2}-[0-9]{2}(?<tz>\s*[+-:a-zA-Z0-9]{3,6})$");
 
-        RE.with_name(input, "tz", |matched_tz| {
+        RE.with_tz(input, |matched_tz| {
             match timezone::parse(matched_tz) {
                 Ok(offset) => {
                     // set time to use
@@ -420,22 +405,20 @@ where
         new_regex!(
             RE = r"^[0-9]{1,2}:[0-9]{2}(:[0-9]{2})?\s*(am|pm|AM|PM)?(?<tz>\s+[+-:a-zA-Z0-9]{3,6})$"
         );
-        RE.with_name(input, "tz", |matched_tz| {
-            match timezone::parse(matched_tz) {
-                Ok(offset) => {
-                    let now = Utc::now().with_timezone(&offset);
-                    NaiveTime::parse_from_str(input, "%H:%M:%S %Z")
-                        .or_else(|_| NaiveTime::parse_from_str(input, "%H:%M %Z"))
-                        .or_else(|_| NaiveTime::parse_from_str(input, "%I:%M:%S %P %Z"))
-                        .or_else(|_| NaiveTime::parse_from_str(input, "%I:%M %P %Z"))
-                        .ok()
-                        .map(|parsed| now.date().naive_local().and_time(parsed))
-                        .and_then(|datetime| offset.from_local_datetime(&datetime).single())
-                        .map(|at_tz| at_tz.with_timezone(&Utc))
-                        .map(Ok)
-                }
-                Err(err) => Some(Err(err)),
+        RE.with_tz(input, |matched_tz| match timezone::parse(matched_tz) {
+            Ok(offset) => {
+                let now = Utc::now().with_timezone(&offset);
+                NaiveTime::parse_from_str(input, "%H:%M:%S %Z")
+                    .or_else(|_| NaiveTime::parse_from_str(input, "%H:%M %Z"))
+                    .or_else(|_| NaiveTime::parse_from_str(input, "%I:%M:%S %P %Z"))
+                    .or_else(|_| NaiveTime::parse_from_str(input, "%I:%M %P %Z"))
+                    .ok()
+                    .map(|parsed| now.date().naive_local().and_time(parsed))
+                    .and_then(|datetime| offset.from_local_datetime(&datetime).single())
+                    .map(|at_tz| at_tz.with_timezone(&Utc))
+                    .map(Ok)
             }
+            Err(err) => Some(Err(err)),
         })
     }
 
@@ -516,7 +499,7 @@ where
             RE = r"^[a-zA-Z]{3,9}\s+[0-9]{1,2},?\s+[0-9]{4}\s*,?(at)?\s+[0-9]{2}:[0-9]{2}(:[0-9]{2})?\s*(am|pm|AM|PM)?(?<tz>\s+[+-:a-zA-Z0-9]{3,6})$"
         );
 
-        RE.with_name(input, "tz", |matched_tz| {
+        RE.with_tz(input, |matched_tz| {
             let parse_from_str = NaiveDateTime::parse_from_str;
             match timezone::parse(matched_tz) {
                 Ok(offset) => {
