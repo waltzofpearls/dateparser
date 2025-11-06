@@ -381,7 +381,8 @@ mod tests {
         None,
     }
 
-    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn parse_in_local() {
         let test_cases = vec![
             (
@@ -635,7 +636,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn parse_with_timezone_in_utc() {
         let test_cases = vec![
             (
@@ -838,7 +840,8 @@ mod tests {
 
     // test parse_with() with various timezones and times
 
-    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn parse_with_edt() {
         // Eastern Daylight Time (EDT) is from (as of 2023) 2nd Sun in Mar to 1st Sun in Nov
         // It is UTC -4
@@ -881,7 +884,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn parse_with_est() {
         // Eastern Standard Time (EST) is from (as of 2023) 1st Sun in Nov to 2nd Sun in Mar
         // It is UTC -5
@@ -924,7 +928,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn parse_with_utc() {
         let midnight_naive = NaiveTime::from_hms_opt(0, 0, 0).unwrap();
         let before_midnight_naive = NaiveTime::from_hms_opt(23, 59, 59).unwrap();
@@ -961,7 +966,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn parse_with_local() {
         let midnight_naive = NaiveTime::from_hms_opt(0, 0, 0).unwrap();
         let before_midnight_naive = NaiveTime::from_hms_opt(23, 59, 59).unwrap();

@@ -129,7 +129,8 @@ fn colon_or_space(s: &str) -> Result<&str> {
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn parse() {
         let test_cases = [
             ("-0800", FixedOffset::west(8 * 3600)),
