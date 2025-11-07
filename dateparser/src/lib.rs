@@ -971,7 +971,7 @@ mod tests {
     fn parse_with_local() {
         let midnight_naive = NaiveTime::from_hms_opt(0, 0, 0).unwrap();
         let before_midnight_naive = NaiveTime::from_hms_opt(23, 59, 59).unwrap();
-        let local_test_cases = vec![
+        let local_test_cases = [
             ("ymd", "2023-12-21"),
             ("month_ymd", "2023-Dec-21"),
             ("month_mdy", "December 21, 2023"),

@@ -7,11 +7,9 @@ macro_rules! new_regex {
     ($name:ident = $regex:literal) => {
         std::thread_local! {
             #[cfg(not(all(feature = "wasm", target_arch = "wasm32")))]
-            static $name: ::regex::Regex
-                = regex::Regex::new($regex).unwrap();
-                #[cfg(all(feature = "wasm", target_arch = "wasm32"))]
-            static $name: ::js_sys::RegExp
-                = js_sys::RegExp::new($regex,"d");
+            static $name: ::regex::Regex = regex::Regex::new($regex).unwrap();
+            #[cfg(all(feature = "wasm", target_arch = "wasm32"))]
+            static $name: ::js_sys::RegExp = js_sys::RegExp::new($regex,"d");
         }
     };
 }
@@ -975,7 +973,7 @@ mod tests {
     fn ymd_hms() {
         let parse = Parse::new(&Utc, None);
 
-        let test_cases = vec![
+        let test_cases = [
             ("2021-04-30 21:14", Utc.ymd(2021, 4, 30).and_hms(21, 14, 0)),
             (
                 "2021-04-30 21:14:10",
@@ -1019,7 +1017,7 @@ mod tests {
     fn ymd_hms_z() {
         let parse = Parse::new(&Utc, None);
 
-        let test_cases = vec![
+        let test_cases = [
             (
                 "2017-11-25 13:31:15 PST",
                 Utc.ymd(2017, 11, 25).and_hms(21, 31, 15),
