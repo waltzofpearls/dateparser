@@ -138,7 +138,7 @@ mod tests {
     #[test]
     fn test_config_path() {
         let mut buf = vec![0u8];
-        let app = "unit-test";
+        let app = "unit-test-path";
         let config = match Config::new(app, &mut buf) {
             Ok(config) => config,
             Err(_) => {
@@ -148,14 +148,14 @@ mod tests {
         };
         let path = config.path();
         if !path.contains(app) {
-            panic!("path [{}] does not contain [unit-test]", path);
+            panic!("path [{}] does not contain [{}]", path, app);
         }
     }
 
     #[test]
     fn test_config_list() {
         let mut buf = vec![0u8];
-        let app = "unit-test";
+        let app = "unit-test-list";
         let mut config = match Config::new(app, &mut buf) {
             Ok(config) => config,
             Err(_) => {
@@ -176,7 +176,7 @@ mod tests {
     #[test]
     fn test_config_add() {
         let mut buf = vec![0u8];
-        let app = "unit-test";
+        let app = "unit-test-add";
         let mut config = match Config::new(app, &mut buf) {
             Ok(config) => config,
             Err(_) => {
@@ -198,7 +198,7 @@ mod tests {
     #[test]
     fn test_config_delete() {
         let mut buf = vec![0u8];
-        let app = "unit-test";
+        let app = "unit-test-delete";
         let mut config = match Config::new(app, &mut buf) {
             Ok(config) => config,
             Err(_) => {
@@ -218,7 +218,7 @@ mod tests {
     #[test]
     fn test_config_reset() {
         let mut buf = vec![0u8];
-        let app = "unit-test";
+        let app = "unit-test-reset";
         let mut config = match Config::new(app, &mut buf) {
             Ok(config) => config,
             Err(_) => {
