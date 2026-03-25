@@ -1,6 +1,6 @@
 [package]
 name = "belt"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["Rollie Ma <rollie@rollie.dev>"]
 edition = "2021"
 publish = false
