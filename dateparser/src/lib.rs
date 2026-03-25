@@ -626,8 +626,14 @@ mod tests {
                         .unwrap()
                         .trunc_subsecs(0)
                         .with_second(0)
+                        .unwrap()
+                        .with_minute(0)
                         .unwrap(),
-                    want.trunc_subsecs(0).with_second(0).unwrap(),
+                    want.trunc_subsecs(0)
+                        .with_second(0)
+                        .unwrap()
+                        .with_minute(0)
+                        .unwrap(),
                     "parse_in_local/{}/{}",
                     test,
                     input
@@ -828,8 +834,14 @@ mod tests {
                         .unwrap()
                         .trunc_subsecs(0)
                         .with_second(0)
+                        .unwrap()
+                        .with_minute(0)
                         .unwrap(),
-                    want.trunc_subsecs(0).with_second(0).unwrap(),
+                    want.trunc_subsecs(0)
+                        .with_second(0)
+                        .unwrap()
+                        .with_minute(0)
+                        .unwrap(),
                     "parse_with_timezone_in_utc/{}/{}",
                     test,
                     input
